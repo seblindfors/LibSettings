@@ -1,5 +1,5 @@
 ---@class LibSettings
-local Lib = LibStub:NewLibrary('LibSettings', 1)
+local Lib = LibStub:NewLibrary('LibSettings', 0.1)
 if not Lib then return end; local _ = CreateCounter();
 ---------------------------------------------------------------------------------------
 Lib.Types                       =  {--[[@enum (key) Types                            ]]
@@ -15,6 +15,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     Header                      =_()--[[@as LibSettings.Type.Header                 ]];
     Slider                      =_()--[[@as LibSettings.Type.Slider                 ]];
     Spacer                      =_()--[[@as LibSettings.Type.Spacer                 ]];
+    Key                         =_()--[[@as LibSettings.Type.Key                    ]];
     -- Containers
     CanvasLayoutCategory        =_()--[[@as LibSettings.Category.Canvas             ]];
     CanvasLayoutSubcategory     =_()--[[@as LibSettings.Category.Canvas             ]];
@@ -52,6 +53,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  show         LibSettings.Pred     Predicate(s) for showing the element
     ---@field  modify       LibSettings.Pred     Predicate(s) for allowing modification
     ---@field  event        LibSettings.Event    Event to trigger the element to update
+    ---@field  parent       string               Relative key to parent initializer
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Setting : LibSettings.Variable
     ---@field  set          function             Callback function for setting a value
@@ -66,9 +68,14 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@class LibSettings.Type.ExpandableSection : LibSettings.ListItem
     ---@field  expanded     boolean              Section is expanded by default
 ---------------------------------------------------------------------------------------
+---@class LibSettings.Type.Key : LibSettings.Variable
+    ---@field  agnostic     boolean              Key chord is agnostic to meta key side
+    ---@field  single       boolean              Key chord is single key
+---------------------------------------------------------------------------------------
 ---@class LibSettings.Type.Element : LibSettings.Variable
-    ---@field  width        number               Width of the element : 280
-    ---@field  height       number               Height of the element : 26
+    ---@field  width        number               Width of the element : DEF_ELEM_WIDTH
+    ---@field  height       number               Height of the element : DEF_ELEM_HEIGHT
+    ---@field  extent       number               Extent of the element (height + padding)
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Type.Binding : LibSettings.Variable
     ---@field  binding      string               Binding to modify
@@ -142,7 +149,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@alias LibSettings.OptGen   fun(interal: LibSettings.Setting) : LibSettings.Option[]
 ---@alias LibSettings.OptList  fun(options: LibSettings.Options) : LibSettings.Option[]
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
----@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): LibSettings.Result.Base, string, LibSettings.Result.Layout?, LibSettings.SetValue?, LibSettings.GetValue?, LibSettings.SetValue?, LibSettings.GetValue?
+---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
 ---------------------------------------------------------------------------
 
     'Category',                   -- (category, group)
@@ -167,6 +174,7 @@ end
 -- Helpers
 ---------------------------------------------------------------
 local Settings, CHILDREN, DELIMITER = Settings, 1, '.';
+local DEF_ELEM_WIDTH, DEF_ELEM_HEIGHT = 280, 26;
 
 local function CreateOptionsTable(options) ---@type LibSettings.OptList
     local container = Settings.CreateControlTextContainer();
@@ -258,13 +266,13 @@ local function MakeGetter(props, parent)
 end
 
 ---@param  props     LibSettings.Setting Properties of the setting
----@param  variable  string  Unique variable ID of the setting
 ---@param  setting   LibSettings.Widget  Setting object
 ---@param  set       LibSettings.Set     Callback function for setting a value
 ---@param  get       LibSettings.Get     Callback function for getting a value
 ---@return LibSettings.SetValue  set     Wrapped function for setting a value
 ---@return LibSettings.GetValue  get     Wrapped function for getting a value
-local function MountSettingChanger(props, variable, setting, set, get)
+local function MountSettingChanger(props, setting, set, get)
+    local variable = setting:GetVariable();
     if set then
         Settings.SetOnValueChangedCallback(variable, set, props);
         set = GenerateClosure(setting.SetValue, setting);
@@ -328,19 +336,30 @@ do
     AddShownPredicates   = GenerateClosure(__add,    'AddShownPredicate',  UnpackPredicates)   --[[@as function]];
     AddModifyPredicates  = GenerateClosure(__add,    'AddModifyPredicate', UnpackPredicates)   --[[@as function]];
 
+    local function ResolveAndSetParentInitializer(init, parent, modifier)
+        if not modifier then
+            local setting = parent.GetSetting and parent:GetSetting();
+            if setting then
+                if (setting:GetVariableType() == Settings.VarType.Boolean) then
+                    modifier = function() return setting:GetValue() end;
+                end
+            end
+        end
+        init:SetParentInitializer(parent, modifier);
+        return true;
+    end
+
     function SetParentInitializer(init, parentResult, lookup, modifier)
         if type(lookup) == 'string' then
-            -- TODO: handle parentResult erroring if not found
+            assert(parentResult, ('Parent initializer %q not found in %q.'):format(lookup, init:GetName()));
             for key in lookup:gmatch('[^%.]+') do
-                if (key == '$parent') then
-                    parentResult = parentResult.parent;
-                else
-                    parentResult = parentResult[key];
+                parentResult = parentResult[key];
+                if not parentResult then
+                    return false;
                 end
             end
             if parentResult then
-                init:SetParentInitializer(parentResult.object, modifier);
-                return true;
+                return ResolveAndSetParentInitializer(init, parentResult.object, modifier);
             end
         end
     end
@@ -441,18 +460,22 @@ Lib.Factory = {
     ---@param  props  LibSettings.Type.Element
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local data = { name = name, tooltip = props.tooltip };
+        local name, id, variable = GetIdentity(props, parent, index);
+        local data = { name = name, variable = variable, tooltip = props.tooltip };
         local init = Settings.CreateElementInitializer('SettingsListElementTemplate', data);
         if not not props.search then
             init:AddSearchTags(name)
         end
         parent.layout:AddInitializer(init)
 
+        init.GetExtent = function()
+            return props.extent or props.height or DEF_ELEM_HEIGHT;
+        end;
+
         init.InitFrame = function(initializer, self)
             SettingsListElementMixin.OnLoad(self)
             ScrollBoxFactoryInitializerMixin.InitFrame(initializer, self)
-            self:SetSize(props.width or 280, props.height or 26)
+            self:SetSize(props.width or DEF_ELEM_WIDTH, props.height or DEF_ELEM_HEIGHT)
         end;
 
         MountCommon(init, props, parent)
@@ -472,7 +495,7 @@ Lib.Factory = {
             init = Settings.CreateCheckBox(parent.object, setting, props.tooltip);
             MountCommon(init, props, parent)
         end
-        return init or setting, id, nil, MountSettingChanger(props, variable, setting, set, get);
+        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
 
     [Types.Slider]
@@ -487,7 +510,7 @@ Lib.Factory = {
             init = Settings.CreateSlider(parent.object, setting, CreateSliderOptions(props), props.tooltip);
             MountCommon(init, props, parent)
         end
-        return init or setting, id, nil, MountSettingChanger(props, variable, setting, set, get);
+        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
 
     [Types.DropDown]
@@ -502,7 +525,7 @@ Lib.Factory = {
             init = Settings.CreateDropDown(parent.object, setting, MakeOptions(props), props.tooltip);
             MountCommon(init, props, parent)
         end
-        return init or setting, id, nil, MountSettingChanger(props, variable, setting, set, get);
+        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
 
     [Types.Binding]
@@ -610,43 +633,33 @@ Lib.Factory = {
         return init, id, nil, cbSet, cbGet, ddSet, ddGet;
     end;
 
+    -- Custom types
     [Types.ExpandableSection]
     = (function()
         local ExpandableSectionMixin = {};
 
         function ExpandableSectionMixin:OnExpandedChanged(expanded)
-            local initializer = self:GetElementData();
-            local data = initializer.data;
             if expanded then
                 self.Button.Right:SetAtlas('Options_ListExpand_Right_Expanded', TextureKitConstants.UseAtlasSize);
             else
                 self.Button.Right:SetAtlas('Options_ListExpand_Right', TextureKitConstants.UseAtlasSize);
             end
-            if (data.setting:GetValue() == expanded) then
-                return;
-            end
-            data.setting:SetValue(expanded);
+            SettingsInbound.RepairDisplay()
         end
 
-        function ExpandableSectionMixin:CalculateHeight()
-            return 26;
-        end
-
-        function ExpandableSectionMixin:GetExtent()
-            return 26;
-        end
+        -- TODO: what if child is a canvas?
+        function ExpandableSectionMixin:CalculateHeight() return DEF_ELEM_HEIGHT end;
+        ExpandableSectionMixin.GetExtent = ExpandableSectionMixin.CalculateHeight;
 
         ---@param  props  LibSettings.Type.ExpandableSection
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
-            local name, id, variable = GetIdentity(props, parent, index);
+            local name, _, variable = GetIdentity(props, parent, index);
             local init = CreateSettingsExpandableSectionInitializer(name)
             local data = init.data;
-            local setting = Settings.RegisterAddOnSetting(parent.object, name, variable, Settings.VarType.Boolean, not not props.expanded);
 
             parent.layout:AddInitializer(init)
 
-            data.setting  = setting;
             data.expanded = props.expanded;
             Mixin(init, ExpandableSectionMixin)
 
@@ -666,7 +679,155 @@ Lib.Factory = {
                     Mixin(self, ExpandableSectionMixin);
                 end
             end;
-            return parent.object, id, parent.layout;
+            return parent.object, variable, parent.layout;
+        end
+    end)() --[[@as LibSettings.Factory]];
+
+    [Types.Key]
+    = (function()
+        local CustomBindingManager, CustomBindingButtonMixin = CreateFromMixins(CustomBindingManager), CreateFromMixins(CustomBindingButtonMixin);
+        CustomBindingManager.handlers     = {};
+        CustomBindingManager.systems      = {};
+        CustomBindingManager.pendingBinds = {};
+
+        local CreateKeyChordStringFromTable = CreateKeyChordStringFromTable;
+        local CreateKeyChordTableFromString = function(keyChordString)
+            local keyChordTable = {};
+            for key in keyChordString:gmatch('[^%-]+') do
+                tinsert(keyChordTable, key);
+            end
+            return keyChordTable;
+        end
+
+        local FilterAgnostic = function(props, keyChordString)
+            if not props.agnostic then
+                return keyChordString;
+            end
+            local keyChordTable = CreateKeyChordTableFromString(keyChordString);
+            for i, key in ipairs(keyChordTable) do
+                keyChordTable[i] = IsMetaKey(key) and (key:gsub('^[LR]', '')) or key;
+            end
+            return CreateKeyChordStringFromTable(keyChordTable);
+        end
+
+        local FilterSingle = function(props, keyChordString)
+            if props.single then
+                return (keyChordString:match('[^%-]+$'));
+            end
+            return keyChordString;
+        end
+
+        function CustomBindingButtonMixin:OnInput(key, isDown)
+            local isButtonRelease = not isDown;
+            if not self:IsBindingModeActive() then
+                if isButtonRelease then
+                    self:EnableKeyboard(false);
+                end
+                return;
+            end
+            key = GetConvertedKeyOrButton(key);
+            if isDown then
+                if key == 'ESCAPE' then
+                    self:CancelBinding();
+                    return;
+                end
+                if not IsMetaKey(key) then
+                    self.receivedNonMetaKeyInput = true;
+                end
+                tinsert(self.keys, key);
+            end
+            CustomBindingManager:SetPendingBind(self:GetCustomBindingType(), self.keys);
+            if self.receivedNonMetaKeyInput or isButtonRelease then
+                self:NotifyBindingCompleted(true, self.keys);
+                if isButtonRelease then
+                    self:EnableKeyboard(false);
+                end
+            end
+        end
+
+        function CustomBindingButtonMixin:SetBindingModeActive(isActive, preventBindingManagerUpdate)
+            self.isBindingModeActive = isActive;
+            self.receivedNonMetaKeyInput = false;
+            self.keys = {};
+            BindingButtonTemplate_SetSelected(self, isActive);
+            if isActive then
+                self:RegisterForClicks('AnyDown', 'AnyUp');
+                self:EnableKeyboard(true);
+            else
+                self:RegisterForClicks('LeftButtonUp', 'RightButtonUp');
+            end
+            if not preventBindingManagerUpdate then
+                CustomBindingManager:OnBindingModeActive(self, isActive);
+            end
+        end
+
+        function CustomBindingButtonMixin:NotifyBindingCompleted(completedSuccessfully, keys)
+            CustomBindingManager:OnBindingCompleted(self, completedSuccessfully, keys);
+            self:SetBindingModeActive(false);
+        end
+
+        return function(props, parent, index)
+            local init, id = Lib.Factory[Types.Element](props, parent, index);
+            local data = init:GetData();
+            local setting = Settings.RegisterAddOnSetting(parent.object, data.variable, Settings.VarType.String, props.default);
+            init:SetSetting(setting);
+            local set, get = GetCallbacks(props, parent);
+            set, get = MountSettingChanger(props, setting, set, get);
+
+            CustomBindingManager:AddSystem(setting,
+                function()  return CreateKeyChordTableFromString(get()) end,
+                function(keys) set(FilterSingle(props, FilterAgnostic(props, CreateKeyChordStringFromTable(keys)))) end
+            );
+            local handler = CustomBindingHandler:CreateHandler(setting);
+
+            handler:SetOnBindingModeActivatedCallback(function(isActive)
+                if isActive then
+                    SettingsPanel.OutputText:SetFormattedText(BIND_KEY_TO_COMMAND, data.name);
+                end
+            end);
+
+            handler:SetOnBindingCompletedCallback(function(completedSuccessfully, keys)
+                CustomBindingManager:OnDismissed(setting, completedSuccessfully)
+                if completedSuccessfully then
+                    SettingsPanel.OutputText:SetText(KEY_BOUND);
+                    local finalValue = GetBindingText(get());
+                    for handler, button in CustomBindingManager:EnumerateHandlers(setting) do
+                        button:OnBindingTextChanged(finalValue);
+                    end
+                end
+            end);
+
+            local elementInitializer = init.InitFrame;
+            init.InitFrame = function(initializer, self)
+                elementInitializer(initializer, self);
+                self.CustomBindingButton = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', self, function(self)
+                    Mixin(self, CustomBindingButtonMixin)
+                    self:SetCustomBindingHandler(handler)
+                    self:SetCustomBindingType(setting)
+                    CustomBindingManager:SetHandlerRegistered(self, true)
+                    self:SetWidth(200)
+                    self:Show()
+                    local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType())
+                    if bindingText then
+                        self:SetText(bindingText);
+                        self:SetAlpha(1);
+                    else
+                        self:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND));
+                        self:SetAlpha(0.8);
+                    end
+                end)
+                self.CustomBindingButton:SetPoint('LEFT', self, 'CENTER', -80, 0)
+            end;
+
+            local elementResetter = init.Resetter;
+            init.Resetter = function(initializer, self)
+                elementResetter(initializer, self);
+                CustomBindingManager:SetHandlerRegistered(self.CustomBindingButton, false)
+                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', self.CustomBindingButton)
+                self.CustomBindingButton = nil;
+            end;
+
+            return init, id, nil, set, get;
         end
     end)() --[[@as LibSettings.Factory]];
 }; local Factory = Lib.Factory;
@@ -764,130 +925,21 @@ setmetatable(Lib, {
     __index = Lib.Get;
 })
 
----------------------------------------------------------------
--- Custom types
----------------------------------------------------------------
-do local CustomBindingManager, CustomBindingButtonMixin = CreateFromMixins(CustomBindingManager), CreateFromMixins(CustomBindingButtonMixin);
-
-    -- Create tainted copy of custom binding manager
-    CustomBindingManager.handlers     = {};
-    CustomBindingManager.systems      = {};
-    CustomBindingManager.pendingBinds = {};
-
-    function CustomBindingButtonMixin:OnInput(key, isDown)
-        local isButtonRelease = not isDown;
-        if not self:IsBindingModeActive() then
-            -- Receiving an up event after bindings are disabled should disable bind-handling
-            if isButtonRelease then
-                self:EnableKeyboard(false);
-            end
-            -- But always return if binding mode wasn't active
-            return;
-        end
-        key = GetConvertedKeyOrButton(key);
-        if isDown then
-            if key == "ESCAPE" then
-                self:CancelBinding();
-                return;
-            end
-            if not IsMetaKey(key) then
-                self.receivedNonMetaKeyInput = true;
-            end
-            table.insert(self.keys, key);
-        end
-        CustomBindingManager:SetPendingBind(self:GetCustomBindingType(), self.keys);
-        if self.receivedNonMetaKeyInput or isButtonRelease then
-            self:NotifyBindingCompleted(true, self.keys);
-            if isButtonRelease then
-                self:EnableKeyboard(false);
-            end
-        end
-    end
-
-    function CustomBindingButtonMixin:SetBindingModeActive(isActive, preventBindingManagerUpdate)
-        self.isBindingModeActive = isActive;
-        self.receivedNonMetaKeyInput = false;
-        self.keys = {};
-        BindingButtonTemplate_SetSelected(self, isActive);
-        if isActive then
-            self:RegisterForClicks("AnyDown", "AnyUp");
-            self:EnableKeyboard(true); -- Only enable here, disable later so that this button continues to see keyboard events through the entire key press/release cycle.
-        else
-            self:RegisterForClicks("LeftButtonUp", "RightButtonUp");
-        end
-        if not preventBindingManagerUpdate then
-            CustomBindingManager:OnBindingModeActive(self, isActive);
-        end
-    end
-
-    function CustomBindingButtonMixin:NotifyBindingCompleted(completedSuccessfully, keys)
-        CustomBindingManager:OnBindingCompleted(self, completedSuccessfully, keys);
-        self:SetBindingModeActive(false);
-    end
-
-    -- Add custom binding button template
-    Lib:AddCustomType('Key', function(props, parent, index)
-        local init, id = Lib.Factory[Types.Element](props, parent, index);
-        local chord    = props.chord;
-        local default  = props.default;
-        local data     = init:GetData()
-
-        CustomBindingManager:AddSystem(init, props.get, props.set)
-        local handler = CustomBindingHandler:CreateHandler(init)
-
-        handler:SetOnBindingModeActivatedCallback(function(isActive)
-            if isActive then
-                SettingsPanel.OutputText:SetFormattedText(BIND_KEY_TO_COMMAND, data.name);
-            end
-        end)
-
-        handler:SetOnBindingCompletedCallback(function(completedSuccessfully, keys)
-            CustomBindingManager:OnDismissed(init, completedSuccessfully)
-            if completedSuccessfully then
-                SettingsPanel.OutputText:SetText(KEY_BOUND)
-            end
-        end)
-
-        local elementInitializer = init.InitFrame;
-        init.InitFrame = function(initializer, self)
-            elementInitializer(initializer, self)
-            self.CustomBindingButton = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', self, function(self)
-                Mixin(self, CustomBindingButtonMixin)
-                self:SetCustomBindingHandler(handler)
-                self:SetCustomBindingType(init)
-                CustomBindingManager:SetHandlerRegistered(self, true)
-                self:SetWidth(200)
-                self:Show()
-                local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType())
-                if bindingText then
-                    self:SetText(bindingText);
-                    self:SetAlpha(1);
-                else
-                    self:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND));
-                    self:SetAlpha(0.8);
-                end
-            end)
-            self.CustomBindingButton:SetPoint('LEFT', self, 'CENTER', -80, 0)
-        end;
-
-        init.Resetter = function(initializer, self)
-            ScrollBoxFactoryInitializerMixin.Resetter(initializer, self)
-            CustomBindingManager:SetHandlerRegistered(self.CustomBindingButton, false)
-            Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', self.CustomBindingButton)
-            self.CustomBindingButton = nil;
-        end;
-
-        return init, nil, id;
-    end)
-end
-
-Test_SavedVars = {testCheckBox = false, testSlider = 190, selection = 2, testCheckBox2 = true}
+Test_SavedVars = {testCheckBox = false, testSlider = 190, selection = 2, testCheckBox2 = true, testKey = 'ALT-SHIFT-A'}
 
 res = Lib({
     name  = 'ConsolePort';
     type  = Lib.Types.VerticalLayoutCategory;
     table = Test_SavedVars;
     {
+        {
+            type     = Lib.Types.Key;
+            name     = 'Test Key';
+            tooltip  = 'This is a tooltip for the key.';
+            id       = 'testKey';
+            default  = 'A';
+            agnostic = true;
+        };
         {
             name     = 'Test Checkbox';
             id       = 'testCheckBox';
@@ -906,19 +958,13 @@ res = Lib({
         {
             name    = 'Test Modify Predicate';
             id      = 'testCheckBox2';
-            modify   = function()
-                return Test_SavedVars.testCheckBox
-            end;
-            parent   = 'children.testCheckBox';
+            parent  = 'children.testCheckBox';
             default = true;
         };
         {
             name     = 'Test Slider';
             id       = 'testSlider';
             tooltip  = 'This is a tooltip for the slider.';
-            modify   = function()
-                return Test_SavedVars.testCheckBox
-            end;
             parent   = 'children.testCheckBox';
             default  = 180;
             min      = 90;
