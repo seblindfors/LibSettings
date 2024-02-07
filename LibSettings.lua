@@ -68,7 +68,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@class LibSettings.Type.ExpandableSection : LibSettings.ListItem
     ---@field  expanded     boolean              Section is expanded by default
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Key : LibSettings.Variable
+---@class LibSettings.Type.Key : LibSettings.Setting
     ---@field  agnostic     boolean              Key chord is agnostic to meta key side
     ---@field  single       boolean              Key chord is single key
 ---------------------------------------------------------------------------------------
@@ -341,7 +341,8 @@ do
             local setting = parent.GetSetting and parent:GetSetting();
             if setting then
                 if (setting:GetVariableType() == Settings.VarType.Boolean) then
-                    modifier = function() return setting:GetValue() end;
+                    -- If the parent is a checkbox, we want to enable the child if the parent is checked.
+                    modifier = GenerateClosure(setting.GetValue, setting);
                 end
             end
         end
@@ -351,16 +352,12 @@ do
 
     function SetParentInitializer(init, parentResult, lookup, modifier)
         if type(lookup) == 'string' then
-            assert(parentResult, ('Parent initializer %q not found in %q.'):format(lookup, init:GetName()));
+            local errorMsg = ('Parent initializer %q not found in %q.'):format(lookup, init:GetName());
             for key in lookup:gmatch('[^%.]+') do
+                assert(parentResult, errorMsg);
                 parentResult = parentResult[key];
-                if not parentResult then
-                    return false;
-                end
             end
-            if parentResult then
-                return ResolveAndSetParentInitializer(init, parentResult.object, modifier);
-            end
+            return ResolveAndSetParentInitializer(init, parentResult.object, modifier);
         end
     end
 end
@@ -407,14 +404,14 @@ end
 -- and its layout object, as well as any additional callbacks for setting and getting values.
 ---@type table<LibSettings.ListItem, LibSettings.Factory>
 Lib.Factory = {
-    -- Layouts
+    -- TODO
     --[[Types.AddOnCategory] = function(props)
-        -- TODO
         local name, id = GetIdentity(props);
         local category, layout = Settings.GetCategory(name);
         return category, layout, id;
     end;]]
 
+    -- Layouts
     [Types.VerticalLayoutCategory]
     ---@param  props  LibSettings.Category.Vertical
     ---@return LibSettings.Result.Layout
@@ -663,12 +660,12 @@ Lib.Factory = {
             data.expanded = props.expanded;
             Mixin(init, ExpandableSectionMixin)
 
-            local function ShouldShowDescendant()
+            local function IsExpanded()
                 return data.expanded;
             end
 
             for i, child in ipairs(props[CHILDREN] or {}) do
-                PackPredicates(child, 'show', ShouldShowDescendant);
+                PackPredicates(child, 'show', IsExpanded);
             end
 
             local elementInitializer = init.InitFrame;
@@ -766,6 +763,8 @@ Lib.Factory = {
             self:SetBindingModeActive(false);
         end
 
+        ---@param  props  LibSettings.Type.Key
+        ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
             local data = init:GetData();
@@ -867,30 +866,22 @@ end
 ---------------------------------------------------------------
 -- Create
 ---------------------------------------------------------------
--- @param props            table    Properties of the widget
--- @param parent           table    Parent tree node
--- @param index            number   Index of the widget in the parent tree node
--- @return result          table    Nested table of created widgets
--- @return result.object   table    Widget object that was created
--- @return result.id       string   Unique identifier of the object
--- @return result.layout   table    Layout object that was created
--- @return result.set      function Callback function for setting a value
--- @return result.get      function Callback function for getting a value
--- @return result.setOption function Callback function for setting an option
--- @return result.getOption function Callback function for getting an option
--- @return result.children table    Nested table of created child widgets
+-- Create a set of widgets from a props table. The props table
+-- is a tree of widget properties, with each node representing
+-- a widget or a layout. The root node is the parent of the
+-- entire tree, which is the owner of the created widgets.
 ---------------------------------------------------------------
 local function Create(props, parent, index)
     local type, result = props.type, {parent = parent, index = index};
     local factory = type and Factory[type] or ResolveType(props, parent);
     if factory then
-        result.object,    -- @param object table Widget object that was created
-        result.id,        -- @param id     string Unique identifier of the object
-        result.layout,    -- @param layout table  Layout object that was created
-        result.setValue,  -- @param set    function Callback function for setting a value
-        result.getValue,  -- @param get    function Callback function for getting a value
-        result.setOption, -- @param setOption function Callback function for setting an option
-        result.getOption  -- @param getOption function Callback function for getting an option
+        result.object,    ---@return table    object    Widget object that was created
+        result.id,        ---@return string   id        Unique identifier of the object
+        result.layout,    ---@return table    layout    Layout object that was created
+        result.setValue,  ---@return function set       Callback function for setting a value
+        result.getValue,  ---@return function get       Callback function for getting a value
+        result.setOption, ---@return function setOption Callback function for setting an option
+        result.getOption  ---@return function getOption Callback function for getting an option
         = factory(props, parent, index);
     end
     local children = props[CHILDREN];
@@ -913,216 +904,23 @@ end
 function Lib:Create(props, owner, layout)
     local result = Create(props, owner, layout)
     Settings.RegisterAddOnCategory(result.object)
+    self.Registry[result.id] = result;
     return result;
 end
 
+---------------------------------------------------------------
+-- Get
+---------------------------------------------------------------
+-- Get a widget tree from the registry by its unique identifier.
+-- This is typically the name of the category, if not specified.
+---------------------------------------------------------------
 function Lib:Get(id)
-    -- TODO
+    return self.Registry[id];
 end
+
+Lib.Registry = {};
 
 setmetatable(Lib, {
     __call  = Lib.Create;
     __index = Lib.Get;
 })
-
-Test_SavedVars = {testCheckBox = false, testSlider = 190, selection = 2, testCheckBox2 = true, testKey = 'ALT-SHIFT-A'}
-
-res = Lib({
-    name  = 'ConsolePort';
-    type  = Lib.Types.VerticalLayoutCategory;
-    table = Test_SavedVars;
-    {
-        {
-            type     = Lib.Types.Key;
-            name     = 'Test Key';
-            tooltip  = 'This is a tooltip for the key.';
-            id       = 'testKey';
-            default  = 'A';
-            agnostic = true;
-        };
-        {
-            name     = 'Test Checkbox';
-            id       = 'testCheckBox';
-            tooltip  = 'This is a tooltip for the checkbox.';
-            default  = false;
-            --[[{
-                name     = 'Test Slider';
-                id       = 'testSlider';
-                tooltip  = 'This is a tooltip for the slider.';
-                default  = 180;
-                min      = 90;
-                max      = 360;
-                step     = 10;
-            };]]
-        };
-        {
-            name    = 'Test Modify Predicate';
-            id      = 'testCheckBox2';
-            parent  = 'children.testCheckBox';
-            default = true;
-        };
-        {
-            name     = 'Test Slider';
-            id       = 'testSlider';
-            tooltip  = 'This is a tooltip for the slider.';
-            parent   = 'children.testCheckBox';
-            default  = 180;
-            min      = 90;
-            max      = 360;
-            step     = 10;
-        };
-        {
-            type = Lib.Types.ExpandableSection;
-            name = 'Expandable Section';
-            id   = 'expandableSection';
-            {
-                {
-                    name     = 'Test Checkbox 2';
-                    id       = 'toggle2';
-                    tooltip  = 'This is a tooltip for the checkbox.';
-                    default  = false;
-                    {
-                        type     = Lib.Types.Slider;
-                        name     = 'Test Slider 2';
-                        id       = 'slider2';
-                        tooltip  = 'This is a tooltip for the slider.';
-                        default  = 180;
-                        min      = 90;
-                        max      = 360;
-                        step     = 10;
-                    };
-                };
-            };
-        };
-        {
-            type = Lib.Types.ExpandableSection;
-            name = 'Expandable Section';
-            id   = 'expandableSection';
-            {
-                {
-                    name     = 'Test Checkbox 2';
-                    id       = 'toggle3';
-                    tooltip  = 'This is a tooltip for the checkbox.';
-                    default  = false;
-                    {
-                        type     = Lib.Types.Slider;
-                        name     = 'Test Slider 2';
-                        id       = 'slider3';
-                        tooltip  = 'This is a tooltip for the slider.';
-                        default  = 180;
-                        min      = 90;
-                        max      = 360;
-                        step     = 10;
-                    };
-                };
-            };
-        };
-        {
-            type     = Lib.Types.DropDown;
-            name     = 'Test Dropdown';
-            id       = 'selection';
-            tooltip  = 'This is a tooltip for the dropdown.';
-            default  = 2;
-            options  = {
-                { 1, 'Option 1' };
-                { 2, 'Option 2' };
-                { 3, 'Option 3' };
-            };
-        };
-        --[[
-        {
-            type     = Lib.Types.Key;
-            name     = 'Test Key';
-            tooltip  = 'This is a tooltip for the key.';
-            get = function() return {'A'} end;
-            set = function(result) DevTools_Dump(result) end;
-        };
-        {
-            type    = Lib.Types.VerticalLayoutSubcategory;
-            name    = 'Subcategory';
-            {
-                {
-                    name     = 'Test Checkbox 2';
-                    variable = 'toggle2';
-                    tooltip  = 'This is a tooltip for the checkbox.';
-                    default  = false;
-                };
-                {
-                    type     = Lib.Types.Slider;
-                    name     = 'Test Slider 2';
-                    variable = 'slider2';
-                    tooltip  = 'This is a tooltip for the slider.';
-                    default  = 180;
-                    min      = 90;
-                    max      = 360;
-                    step     = 10;
-                };
-                {
-                    type     = Lib.Types.DropDown;
-                    name     = 'Test Dropdown 2';
-                    variable = 'selection2';
-                    tooltip  = 'This is a tooltip for the dropdown.';
-                    default  = 2;
-                    options  = {
-                        { 1, 'Option 1', 'Option-specific tooltip.'};
-                        { 2, 'Option 2' };
-                        { 3, 'Option 3' };
-                    };
-                };
-                {
-                };
-                {
-                    name    = 'Subcategory 2';
-                    {
-                        {
-                            name     = 'Test Checkbox 3';
-                            variable = 'toggle3';
-                            tooltip  = 'This is a tooltip for the checkbox.';
-                            default  = false;
-                        };
-                        {
-                            type     = Lib.Types.Button;
-                            name     = 'Button';
-                            tooltip  = 'This is a tooltip for the button.';
-                            callback = function(...)
-                                print(...)
-                            end;
-                        };
-                        {
-                            name     = 'Test Slider 3';
-                            variable = 'slider3';
-                            tooltip  = 'This is a tooltip for the slider.';
-                            default  = 180;
-                            min      = 90;
-                            max      = 360;
-                            step     = 10;
-                        };
-                        {
-                            name     = 'Header';
-                        };
-                        {
-                            name     = 'Test Dropdown 3';
-                            variable = 'selection3';
-                            tooltip  = 'This is a tooltip for the dropdown.';
-                            default  = 2;
-                            options  = {
-                                { 1, 'Option 1' };
-                                { 2, 'Option 2' };
-                                { 3, 'Option 3' };
-                            };
-                        };
-                        {
-                            binding = 'EXTRAACTIONBUTTON1';
-                            name    = 'Test Binding';
-                            tooltip = 'This is a tooltip for the binding.';
-                        };
-                    };
-                };
-            };
-        };]]
-    };
-})
-
---DevTools_Dump(res)
-
---]]
