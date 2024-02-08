@@ -56,9 +56,10 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  parent       string               Relative key to parent initializer
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Setting : LibSettings.Variable
+    ---@field  default      LibSettings.Value    Default value of the setting
     ---@field  set          function             Callback function for setting a value
     ---@field  get          function             Function to get current value
-    ---@field  key          any                  Key for value in storage table
+    ---@field  key          any                  Optional key for value in storage table
     ---@field  table        table|string         Table/global ref. to store value
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Type.Header : LibSettings.ListItem
@@ -138,6 +139,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---------------------------------------------------------------------------------------
 ---@alias LibSettings.Widget   table
 ---@alias LibSettings.Layout   table
+---@alias LibSettings.Value    string|number|boolean
 ---@alias LibSettings.Pred     function|table<integer, function>
 ---@alias LibSettings.Event    string|table<integer, string>
 ---@alias LibSettings.SetValue fun(value: any)
@@ -217,51 +219,50 @@ local function GetIdentity(props, parent, index)
         GenerateUniqueVariableID(props, parent, index);
 end
 
-local function GetTableKey(props, setting)
-    return props.key or props.id or setting:GetVariable();
-end
-
----@param  props     LibSettings.Setting Properties of the setting
----@param  parent    LibSettings.Result.Layout Parent tree node of the setting
----@return LibSettings.Setter|nil set Callback function for setting a value, if any
-local function MakeSetter(props, parent)
-    if props.set then
-        return props.set;
-    elseif props.table then
-        local function InternalGetTable()
-            if type(props.table) == 'string' then
-                return loadstring('return '..props.table)();
-            else
-                return props.table;
-            end
-        end
-        return function(internal, setting, value)
-            InternalGetTable()[GetTableKey(internal, setting)] = value;
-        end
-    elseif parent then
-        return parent.setValue;
+local MakeSetter, MakeGetter;
+do -- Closure generators for setting and getting values.
+    local function __key(props, setting)
+        return props.key or props.id or setting:GetVariable();
     end
-end
 
----@param  props     LibSettings.Setting        Properties of the setting
----@param  parent    LibSettings.Result.Layout Parent tree node of the setting
----@return LibSettings.Getter|nil get Callback function for getting a value, if any
-local function MakeGetter(props, parent)
-    if props.get then
-        return props.get;
-    elseif props.table then
-        local function InternalGetTable()
-            if type(props.table) == 'string' then
-                return loadstring('return '..props.table)();
-            else
-                return props.table;
+    local function __table(props)
+        if type(props.table) == 'string' then
+            local tbl = loadstring('return '..props.table)();
+            assert(type(tbl) == 'table', ('Evaluated string %q must return a table.'):format(props.table));
+            return tbl;
+        else
+            return props.table;
+        end
+    end
+
+    ---@param  props     LibSettings.Setting Properties of the setting
+    ---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
+    ---@return LibSettings.Setter|nil set Callback function for setting a value, if any
+    function MakeSetter(props, parent)
+        if props.set then
+            return props.set;
+        elseif props.table then
+            return function(internal, setting, value)
+                __table(props)[__key(internal, setting)] = value;
             end
+        elseif parent then
+            return parent.setValue;
         end
-        return function(internal, setting)
-            return InternalGetTable()[GetTableKey(internal, setting)];
+    end
+
+    ---@param  props     LibSettings.Setting        Properties of the setting
+    ---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
+    ---@return LibSettings.Getter|nil get Callback function for getting a value, if any
+    function MakeGetter(props, parent)
+        if props.get then
+            return props.get;
+        elseif props.table then
+            return function(internal, setting)
+                return __table(props)[__key(internal, setting)];
+            end
+        elseif parent then
+            return parent.getValue;
         end
-    elseif parent then
-        return parent.getValue;
     end
 end
 
@@ -300,10 +301,9 @@ local function GetCallbacks(props, parent)
         MakeGetter(props, parent) --[[@as LibSettings.Get]];
 end
 
-local PackPredicates, UnpackPredicates;
-local SetParentInitializer, UnpackEvents;
-local AddShownPredicates, AddModifyPredicates;
-do
+local PackPredicates, UnpackPredicates, UnpackEvents;
+local AddShownPredicates, AddModifyPredicates, SetParentInitializer;
+do -- Closure generators for packing and unpacking predicates and events.
     local function __unpack(requiredType, predicate)
         if type(predicate) == requiredType then
             return ipairs{predicate};
@@ -362,11 +362,12 @@ do
     end
 end
 
+-- Common mounting function for all initializers.
 local function MountCommon(init, props, parent)
-    AddShownPredicates(init, props.show)
-    AddStateFrameEvents(init, props.event)
+    AddShownPredicates(init, props.show);
+    AddStateFrameEvents(init, props.event);
     if not SetParentInitializer(init, parent, props.parent, props.modify) then
-        AddModifyPredicates(init, props.modify)
+        AddModifyPredicates(init, props.modify);
     end
 end
 
@@ -461,18 +462,18 @@ Lib.Factory = {
         local data = { name = name, variable = variable, tooltip = props.tooltip };
         local init = Settings.CreateElementInitializer('SettingsListElementTemplate', data);
         if not not props.search then
-            init:AddSearchTags(name)
+            init:AddSearchTags(name);
         end
-        parent.layout:AddInitializer(init)
+        parent.layout:AddInitializer(init);
 
         init.GetExtent = function()
             return props.extent or props.height or DEF_ELEM_HEIGHT;
         end;
 
         init.InitFrame = function(initializer, self)
-            SettingsListElementMixin.OnLoad(self)
-            ScrollBoxFactoryInitializerMixin.InitFrame(initializer, self)
-            self:SetSize(props.width or DEF_ELEM_WIDTH, props.height or DEF_ELEM_HEIGHT)
+            SettingsListElementMixin.OnLoad(self);
+            ScrollBoxFactoryInitializerMixin.InitFrame(initializer, self);
+            self:SetSize(props.width or DEF_ELEM_WIDTH, props.height or DEF_ELEM_HEIGHT);
         end;
 
         MountCommon(init, props, parent)
@@ -490,7 +491,7 @@ Lib.Factory = {
         local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, Settings.VarType.Boolean, default);
         if not noCreate then
             init = Settings.CreateCheckBox(parent.object, setting, props.tooltip);
-            MountCommon(init, props, parent)
+            MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
@@ -505,7 +506,7 @@ Lib.Factory = {
         local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, Settings.VarType.Number, default);
         if not noCreate then
             init = Settings.CreateSlider(parent.object, setting, CreateSliderOptions(props), props.tooltip);
-            MountCommon(init, props, parent)
+            MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
@@ -520,7 +521,7 @@ Lib.Factory = {
         local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, type(default), default);
         if not noCreate then
             init = Settings.CreateDropDown(parent.object, setting, MakeOptions(props), props.tooltip);
-            MountCommon(init, props, parent)
+            MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
     end;
@@ -532,13 +533,13 @@ Lib.Factory = {
         local name, id = GetIdentity(props, parent, index);
         local binding = props.binding;
         local search  = not not props.search;
-        local entry   = C_KeyBindings.GetBindingIndex(binding)
-        local init    = CreateKeybindingEntryInitializer(entry, search)
+        local entry   = C_KeyBindings.GetBindingIndex(binding);
+        local init    = CreateKeybindingEntryInitializer(entry, search);
         if search then
-            init:AddSearchTags(GetBindingName(binding), name)
+            init:AddSearchTags(GetBindingName(binding), name);
         end
-        parent.layout:AddInitializer(init)
-        MountCommon(init, props, parent)
+        parent.layout:AddInitializer(init);
+        MountCommon(init, props, parent);
         return init, id;
     end;
 
@@ -551,9 +552,9 @@ Lib.Factory = {
         local title   = props.title;
         local tooltip = props.tooltip;
         local search  = not not props.search;
-        local init    = CreateSettingsButtonInitializer(name, title, click, tooltip, search)
-        parent.layout:AddInitializer(init)
-        MountCommon(init, props, parent)
+        local init    = CreateSettingsButtonInitializer(name, title, click, tooltip, search);
+        parent.layout:AddInitializer(init);
+        MountCommon(init, props, parent);
         return init, id;
     end;
 
@@ -562,9 +563,9 @@ Lib.Factory = {
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
-        local init = CreateSettingsListSectionHeaderInitializer(name)
-        parent.layout:AddInitializer(init)
-        MountCommon(init, props, parent)
+        local init = CreateSettingsListSectionHeaderInitializer(name);
+        parent.layout:AddInitializer(init);
+        MountCommon(init, props, parent);
         return init, id;
     end;
 
@@ -573,9 +574,9 @@ Lib.Factory = {
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local _, id = GetIdentity(props, parent, index);
-        local init = Settings.CreateElementInitializer('SettingsCategoryListSpacerTemplate', {})
-        parent.layout:AddInitializer(init)
-        MountCommon(init, props, parent)
+        local init = Settings.CreateElementInitializer('SettingsCategoryListSpacerTemplate', {});
+        parent.layout:AddInitializer(init);
+        MountCommon(init, props, parent);
         return init, id;
     end;
 
@@ -596,9 +597,9 @@ Lib.Factory = {
             cbSetting, cbLabel, cbTooltip,
             slSetting, CreateSliderOptions(props), slLabel, slTooltip
         );
-        parent.layout:AddInitializer(init)
-        MountCommon(init, cbProps)
-        MountCommon(init, props, parent)
+        parent.layout:AddInitializer(init);
+        MountCommon(init, cbProps);
+        MountCommon(init, props, parent);
 
         cbSet, cbGet = cbSet or nop, cbGet or nop;
         slSet, slGet = slSet or nop, slGet or nop;
@@ -621,9 +622,9 @@ Lib.Factory = {
             cbSetting, cbLabel, cbTooltip,
             ddSetting, MakeOptions(props), ddLabel, ddTooltip
         );
-        parent.layout:AddInitializer(init)
-        MountCommon(init, cbProps)
-        MountCommon(init, props, parent)
+        parent.layout:AddInitializer(init);
+        MountCommon(init, cbProps);
+        MountCommon(init, props, parent);
 
         cbSet, cbGet = cbSet or nop, cbGet or nop;
         ddSet, ddGet = ddSet or nop, ddGet or nop;
@@ -641,7 +642,7 @@ Lib.Factory = {
             else
                 self.Button.Right:SetAtlas('Options_ListExpand_Right', TextureKitConstants.UseAtlasSize);
             end
-            SettingsInbound.RepairDisplay()
+            SettingsInbound.RepairDisplay();
         end
 
         -- TODO: what if child is a canvas?
@@ -652,25 +653,22 @@ Lib.Factory = {
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local name, _, variable = GetIdentity(props, parent, index);
-            local init = CreateSettingsExpandableSectionInitializer(name)
+            local init = CreateSettingsExpandableSectionInitializer(name);
             local data = init.data;
 
-            parent.layout:AddInitializer(init)
+            parent.layout:AddInitializer(init);
 
             data.expanded = props.expanded;
-            Mixin(init, ExpandableSectionMixin)
+            Mixin(init, ExpandableSectionMixin);
 
-            local function IsExpanded()
-                return data.expanded;
-            end
-
+            local function IsExpanded() return data.expanded end;
             for i, child in ipairs(props[CHILDREN] or {}) do
                 PackPredicates(child, 'show', IsExpanded);
             end
 
             local elementInitializer = init.InitFrame;
             init.InitFrame = function(this, self)
-                elementInitializer(this, self)
+                elementInitializer(this, self);
                 if not data.initialized then
                     data.initialized = true;
                     Mixin(self, ExpandableSectionMixin);
@@ -770,11 +768,10 @@ Lib.Factory = {
             local data = init:GetData();
             local setting = Settings.RegisterAddOnSetting(parent.object, data.variable, Settings.VarType.String, props.default);
             init:SetSetting(setting);
-            local set, get = GetCallbacks(props, parent);
-            set, get = MountSettingChanger(props, setting, set, get);
+            local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
 
             CustomBindingManager:AddSystem(setting,
-                function()  return CreateKeyChordTableFromString(get()) end,
+                function() return CreateKeyChordTableFromString(get()) end,
                 function(keys) set(FilterSingle(props, FilterAgnostic(props, CreateKeyChordStringFromTable(keys)))) end
             );
             local handler = CustomBindingHandler:CreateHandler(setting);
@@ -800,13 +797,13 @@ Lib.Factory = {
             init.InitFrame = function(initializer, self)
                 elementInitializer(initializer, self);
                 self.CustomBindingButton = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', self, function(self)
-                    Mixin(self, CustomBindingButtonMixin)
-                    self:SetCustomBindingHandler(handler)
-                    self:SetCustomBindingType(setting)
-                    CustomBindingManager:SetHandlerRegistered(self, true)
-                    self:SetWidth(200)
-                    self:Show()
-                    local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType())
+                    Mixin(self, CustomBindingButtonMixin);
+                    self:SetCustomBindingHandler(handler);
+                    self:SetCustomBindingType(setting);
+                    CustomBindingManager:SetHandlerRegistered(self, true);
+                    self:SetWidth(200);
+                    self:Show();
+                    local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType());
                     if bindingText then
                         self:SetText(bindingText);
                         self:SetAlpha(1);
@@ -815,14 +812,14 @@ Lib.Factory = {
                         self:SetAlpha(0.8);
                     end
                 end)
-                self.CustomBindingButton:SetPoint('LEFT', self, 'CENTER', -80, 0)
+                self.CustomBindingButton:SetPoint('LEFT', self, 'CENTER', -80, 0);
             end;
 
             local elementResetter = init.Resetter;
             init.Resetter = function(initializer, self)
                 elementResetter(initializer, self);
-                CustomBindingManager:SetHandlerRegistered(self.CustomBindingButton, false)
-                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', self.CustomBindingButton)
+                CustomBindingManager:SetHandlerRegistered(self.CustomBindingButton, false);
+                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', self.CustomBindingButton);
                 self.CustomBindingButton = nil;
             end;
 
@@ -893,19 +890,41 @@ local function Create(props, parent, index)
             if childName then
                 result.children[childName] = childResult;
             elseif childResult then
-                tinsert(result.children, childResult)
+                tinsert(result.children, childResult);
             end
         end
-        setmetatable(result, { __index = result.children })
+        setmetatable(result, { __index = result.children });
     end
     return result;
 end
 
 function Lib:Create(props, owner, layout)
-    local result = Create(props, owner, layout)
-    Settings.RegisterAddOnCategory(result.object)
+    local result = Create(props, owner, layout);
+    Settings.RegisterAddOnCategory(result.object);
     self.Registry[result.id] = result;
     return result;
+end
+
+function Lib:Add(props, owner, layout)
+    return Create(props, owner, layout);
+end
+
+function Lib:LoadAddOnCategory(name, generator, callback)
+    EventUtil.ContinueOnAddOnLoaded(name, function()
+        local result = self:Create(generator());
+        if callback then
+            callback(result);
+        end
+    end);
+end
+
+function Lib:AppendAddOnCategory(name, generator, callback)
+    EventUtil.ContinueOnAddOnLoaded(name, function()
+        local result = self:Add(generator());
+        if callback then
+            callback(result);
+        end
+    end);
 end
 
 ---------------------------------------------------------------
@@ -923,4 +942,4 @@ Lib.Registry = {};
 setmetatable(Lib, {
     __call  = Lib.Create;
     __index = Lib.Get;
-})
+});
