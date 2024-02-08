@@ -5,23 +5,23 @@ if not Lib then return end; local _ = CreateCounter();
 Lib.Types                       =  {--[[@enum (key) Types                            ]]
 ---------------------------------------------------------------------------------------
     -- Widgets
-    Binding                     =_()--[[@as LibSettings.Type.Binding                ]];
-    Button                      =_()--[[@as LibSettings.Type.Button                 ]];
-    CheckBox                    =_()--[[@as LibSettings.Type.CheckBox               ]];
-    CheckBoxDropDown            =_()--[[@as LibSettings.Type.CheckBoxDropDown       ]];
-    CheckBoxSlider              =_()--[[@as LibSettings.Type.CheckBoxSlider         ]];
-    DropDown                    =_()--[[@as LibSettings.Type.DropDown               ]];
-    Element                     =_()--[[@as LibSettings.Type.Element                ]];
-    Header                      =_()--[[@as LibSettings.Type.Header                 ]];
-    Slider                      =_()--[[@as LibSettings.Type.Slider                 ]];
-    Spacer                      =_()--[[@as LibSettings.Type.Spacer                 ]];
-    Key                         =_()--[[@as LibSettings.Type.Key                    ]];
+    Binding                     =_()--[[@as LibSettings.Types.Binding               ]];
+    Button                      =_()--[[@as LibSettings.Types.Button                ]];
+    CheckBox                    =_()--[[@as LibSettings.Types.CheckBox              ]];
+    CheckBoxDropDown            =_()--[[@as LibSettings.Types.CheckBoxDropDown      ]];
+    CheckBoxSlider              =_()--[[@as LibSettings.Types.CheckBoxSlider        ]];
+    DropDown                    =_()--[[@as LibSettings.Types.DropDown              ]];
+    Element                     =_()--[[@as LibSettings.Types.Element               ]];
+    Header                      =_()--[[@as LibSettings.Types.Header                ]];
+    Slider                      =_()--[[@as LibSettings.Types.Slider                ]];
+    Spacer                      =_()--[[@as LibSettings.Types.Spacer                ]];
+    Key                         =_()--[[@as LibSettings.Types.Key                   ]];
     -- Containers
     CanvasLayoutCategory        =_()--[[@as LibSettings.Category.Canvas             ]];
     CanvasLayoutSubcategory     =_()--[[@as LibSettings.Category.Canvas             ]];
     VerticalLayoutCategory      =_()--[[@as LibSettings.Category.Vertical           ]];
     VerticalLayoutSubcategory   =_()--[[@as LibSettings.Category.Vertical           ]];
-    ExpandableSection           =_()--[[@as LibSettings.Type.ExpandableSection      ]];
+    ExpandableSection           =_()--[[@as LibSettings.Types.ExpandableSection     ]];
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.ListItem
     ---@field  name         string               Display name of the elment
@@ -40,7 +40,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Options<i, LibSettings.OptionList>
 ---------------------------------------------------------------------------------------
----@class LibSettings.Canvas : Frame
+---@class LibSettings.Canvas : LibSettings.ListItem
     ---@field  OnCommit      function            Callback function for committing
     ---@field  OnDefault     function            Callback function for resetting
     ---@field  OnRefresh     function            Callback function for refreshing
@@ -62,48 +62,48 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  key          any                  Optional key for value in storage table
     ---@field  table        table|string         Table/global ref. to store value
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Header : LibSettings.ListItem
+---@class LibSettings.Types.Header : LibSettings.ListItem
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Spacer
+---@class LibSettings.Types.Spacer : LibSettings.ListItem
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.ExpandableSection : LibSettings.ListItem
+---@class LibSettings.Types.ExpandableSection : LibSettings.ListItem
     ---@field  expanded     boolean              Section is expanded by default
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Key : LibSettings.Setting
+---@class LibSettings.Types.Key : LibSettings.Setting
     ---@field  agnostic     boolean              Key chord is agnostic to meta key side
     ---@field  single       boolean              Key chord is single key
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Element : LibSettings.Variable
+---@class LibSettings.Types.Element : LibSettings.Variable
     ---@field  width        number               Width of the element : DEF_ELEM_WIDTH
     ---@field  height       number               Height of the element : DEF_ELEM_HEIGHT
     ---@field  extent       number               Extent of the element (height + padding)
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Binding : LibSettings.Variable
+---@class LibSettings.Types.Binding : LibSettings.Variable
     ---@field  binding      string               Binding to modify
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Button : LibSettings.Variable
+---@class LibSettings.Types.Button : LibSettings.Variable
     ---@field  click        function             Callback function for the button
     ---@field  title        string               Title of the button
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.CheckBox : LibSettings.Setting
+---@class LibSettings.Types.CheckBox : LibSettings.Setting
     ---@field  default      boolean              Default value of the checkbox
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.DropDown : LibSettings.Setting
+---@class LibSettings.Types.DropDown : LibSettings.Setting
     ---@field  default      any                  Default value of the dropdown
     ---@field  options      LibSettings.Options | LibSettings.OptGen Options table or generator
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.Slider : LibSettings.Setting
+---@class LibSettings.Types.Slider : LibSettings.Setting
     ---@field  default      number               Default value of the slider
     ---@field  min          number               Minimum value of the slider
     ---@field  max          number               Maximum value of the slider
     ---@field  step         number               Step value of the slider
     ---@field  format       function             Function to format the slider value
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.CheckBoxDropDown : LibSettings.Type.CheckBox
-    ---@field [1] LibSettings.Type.DropDown      Dropdown next to the checkbox
+---@class LibSettings.Types.CheckBoxDropDown : LibSettings.Types.CheckBox
+    ---@field [1] LibSettings.Types.DropDown      Dropdown next to the checkbox
 ---------------------------------------------------------------------------------------
----@class LibSettings.Type.CheckBoxSlider : LibSettings.Type.CheckBox
-    ---@field [1] LibSettings.Type.Slider        Slider next to the checkbox
+---@class LibSettings.Types.CheckBoxSlider : LibSettings.Types.CheckBox
+    ---@field [1] LibSettings.Types.Slider        Slider next to the checkbox
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Category.Vertical : LibSettings.Setting
     ---@field [1] table<integer, LibSettings.ListItem> List of child elements
@@ -112,43 +112,40 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  frame        LibSettings.Canvas   Frame to insert in the canvas
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Base
-    ---@field  object       LibSettings.Widget   Widget object that was created
     ---@field  id           string               Unique identifier of the object
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Init : LibSettings.Result.Base
-    ---@field  data         table                Data table for the initializer
-    ---@field  InitFrame    function            Callback function for initializing
-    ---@field  Resetter     function            Callback function for resetting
-    ---@field  AddSearchTags function            Callback function for adding tags
+    ---@field  object       Blizzard.Initializer Widget object that was created
 ---------------------------------------------------------------------------------------
----@class LibSettings.Result.Setting : LibSettings.Result.Base
+---@class LibSettings.Result.Setting : LibSettings.Result.Init
     ---@field  setValue     LibSettings.SetValue Wrapped function for setting a value
     ---@field  getValue     LibSettings.GetValue Wrapped function for getting a value
 ---------------------------------------------------------------------------------------
----@class LibSettings.Result.Combined : LibSettings.Result.Base
-    ---@field  setValue     LibSettings.SetValue Wrapped function for setting a value
-    ---@field  getValue     LibSettings.GetValue Wrapped function for getting a value
+---@class LibSettings.Result.Combined : LibSettings.Result.Setting
     ---@field  setOption    LibSettings.SetValue Wrapped function for setting an option
     ---@field  getOption    LibSettings.GetValue Wrapped function for getting an option
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Layout : LibSettings.Result.Base
+    ---@field  object       Blizzard.Category    Category object that was created
     ---@field  layout       LibSettings.Layout   Layout object that was created
     ---@field  children     table                Nested table of created child widgets
     ---@field  setValue     LibSettings.Setter   Callback function for setting a value
     ---@field  getValue     LibSettings.Getter   Callback function for getting a value
 ---------------------------------------------------------------------------------------
----@alias LibSettings.Widget   table
+---@alias Blizzard.Setting     table
+---@alias Blizzard.Initializer table
+---@alias Blizzard.Category    table
 ---@alias LibSettings.Layout   table
 ---@alias LibSettings.Value    string|number|boolean
 ---@alias LibSettings.Pred     function|table<integer, function>
 ---@alias LibSettings.Event    string|table<integer, string>
 ---@alias LibSettings.SetValue fun(value: any)
 ---@alias LibSettings.GetValue fun() : any
----@alias LibSettings.Getter   fun(internal: LibSettings.Setting, setting: LibSettings.Widget) : any
----@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: LibSettings.Widget, value: any)
+---@alias LibSettings.Getter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting) : any
+---@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting, value: any)
 ---@alias LibSettings.Set      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Setter
 ---@alias LibSettings.Get      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Getter
----@alias LibSettings.OptGen   fun(interal: LibSettings.Setting) : LibSettings.Option[]
+---@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : LibSettings.Option[]
 ---@alias LibSettings.OptList  fun(options: LibSettings.Options) : LibSettings.Option[]
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
 ---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
@@ -267,7 +264,7 @@ do -- Closure generators for setting and getting values.
 end
 
 ---@param  props     LibSettings.Setting Properties of the setting
----@param  setting   LibSettings.Widget  Setting object
+---@param  setting   Blizzard.Setting    Setting object
 ---@param  set       LibSettings.Set     Callback function for setting a value
 ---@param  get       LibSettings.Get     Callback function for getting a value
 ---@return LibSettings.SetValue  set     Wrapped function for setting a value
@@ -285,7 +282,7 @@ local function MountSettingChanger(props, setting, set, get)
     return set, get;
 end
 
----@param  props     LibSettings.Type.DropDown Properties of the dropdown
+---@param  props     LibSettings.Types.DropDown Properties of the dropdown
 ---@return LibSettings.GetOpts   options Options table generator
 local function MakeOptions(props)
     if type(props.options) == 'function' then
@@ -455,7 +452,7 @@ Lib.Factory = {
 
     -- Widgets
     [Types.Element]
-    ---@param  props  LibSettings.Type.Element
+    ---@param  props  LibSettings.Types.Element
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local name, id, variable = GetIdentity(props, parent, index);
@@ -481,7 +478,7 @@ Lib.Factory = {
     end;
 
     [Types.CheckBox]
-    ---@param  props  LibSettings.Type.CheckBox
+    ---@param  props  LibSettings.Types.CheckBox
     ---@return LibSettings.Result.Setting
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
@@ -497,7 +494,7 @@ Lib.Factory = {
     end;
 
     [Types.Slider]
-    ---@param  props  LibSettings.Type.Slider
+    ---@param  props  LibSettings.Types.Slider
     ---@return LibSettings.Result.Setting
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
@@ -512,7 +509,7 @@ Lib.Factory = {
     end;
 
     [Types.DropDown]
-    ---@param  props  LibSettings.Type.DropDown
+    ---@param  props  LibSettings.Types.DropDown
     ---@return LibSettings.Result.Setting
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
@@ -527,7 +524,7 @@ Lib.Factory = {
     end;
 
     [Types.Binding]
-    ---@param  props  LibSettings.Type.Binding
+    ---@param  props  LibSettings.Types.Binding
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
@@ -544,7 +541,7 @@ Lib.Factory = {
     end;
 
     [Types.Button]
-    ---@param  props  LibSettings.Type.Button
+    ---@param  props  LibSettings.Types.Button
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
@@ -559,7 +556,7 @@ Lib.Factory = {
     end;
 
     [Types.Header]
-    ---@param  props  LibSettings.Type.Header
+    ---@param  props  LibSettings.Types.Header
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
@@ -570,7 +567,7 @@ Lib.Factory = {
     end;
 
     [Types.Spacer]
-    ---@param  props  LibSettings.Type.Spacer
+    ---@param  props  LibSettings.Types.Spacer
     ---@return LibSettings.Result.Init
     = function(props, parent, index)
         local _, id = GetIdentity(props, parent, index);
@@ -581,16 +578,16 @@ Lib.Factory = {
     end;
 
     [Types.CheckBoxSlider]
-    ---@param  props  LibSettings.Type.CheckBoxSlider
+    ---@param  props  LibSettings.Types.CheckBoxSlider
     ---@return LibSettings.Result.Combined
     = function(props, parent, index)
         local cbSetting, id, _, cbSet, cbGet = Lib.Factory[Lib.Types.CheckBox](
-            props --[[@as LibSettings.Type.CheckBox]], parent, index, true);
+            props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
         local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
 
         props = tremove(props, CHILDREN);
         local slSetting, _, _, slSet, slGet = Lib.Factory[Lib.Types.Slider](
-            props --[[@as LibSettings.Type.Slider]], parent, index, true);
+            props --[[@as LibSettings.Types.Slider]], parent, index, true);
         local slLabel, slTooltip = props.name, props.tooltip;
 
         local init = CreateSettingsCheckBoxSliderInitializer(
@@ -607,16 +604,16 @@ Lib.Factory = {
     end;
 
     [Types.CheckBoxDropDown]
-    ---@param  props  LibSettings.Type.CheckBoxDropDown
+    ---@param  props  LibSettings.Types.CheckBoxDropDown
     ---@return LibSettings.Result.Combined
     = function(props, parent, index)
         local cbSetting, id, _, cbSet, cbGet = Lib.Factory[Lib.Types.CheckBox](
-            props --[[@as LibSettings.Type.CheckBox]], parent, index, true);
+            props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
         local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
 
         props = tremove(props, CHILDREN);
         local ddSetting, _, _, ddSet, ddGet = Lib.Factory[Lib.Types.DropDown](
-            props --[[@as LibSettings.Type.DropDown]], parent, index, true);
+            props --[[@as LibSettings.Types.DropDown]], parent, index, true);
         local ddLabel, ddTooltip = props.name, props.tooltip;
         local init = CreateSettingsCheckBoxDropDownInitializer(
             cbSetting, cbLabel, cbTooltip,
@@ -649,7 +646,7 @@ Lib.Factory = {
         function ExpandableSectionMixin:CalculateHeight() return DEF_ELEM_HEIGHT end;
         ExpandableSectionMixin.GetExtent = ExpandableSectionMixin.CalculateHeight;
 
-        ---@param  props  LibSettings.Type.ExpandableSection
+        ---@param  props  LibSettings.Types.ExpandableSection
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local name, _, variable = GetIdentity(props, parent, index);
@@ -761,7 +758,7 @@ Lib.Factory = {
             self:SetBindingModeActive(false);
         end
 
-        ---@param  props  LibSettings.Type.Key
+        ---@param  props  LibSettings.Types.Key
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
@@ -909,6 +906,16 @@ function Lib:Add(props, owner, layout)
     return Create(props, owner, layout);
 end
 
+---------------------------------------------------------------
+-- LoadAddOnCategory
+---------------------------------------------------------------
+-- Load a category from an addon, and call a callback when it's
+-- done. The category is not created until the addon is loaded,
+-- allowing saved variables to be loaded first.
+---------------------------------------------------------------
+---@param name      string    Name of the addon to load settings for
+---@param generator function  Function to generate a props tree
+---@param callback  function? Function to call when the category is created
 function Lib:LoadAddOnCategory(name, generator, callback)
     EventUtil.ContinueOnAddOnLoaded(name, function()
         local result = self:Create(generator());
@@ -918,6 +925,17 @@ function Lib:LoadAddOnCategory(name, generator, callback)
     end);
 end
 
+---------------------------------------------------------------
+-- AppendAddOnCategory
+---------------------------------------------------------------
+-- Append more settings to an addon category, and call a
+-- callback when it's done. The category is not created until
+-- the addon in question is loaded, allowing saved variables
+-- to be loaded first.
+---------------------------------------------------------------
+---@param name      string    Name of the addon to observe
+---@param generator function  Function to generate an appendage props tree
+---@param callback  function? Function to call when the appendage is created
 function Lib:AppendAddOnCategory(name, generator, callback)
     EventUtil.ContinueOnAddOnLoaded(name, function()
         local result = self:Add(generator());
