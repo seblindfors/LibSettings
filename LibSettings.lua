@@ -27,11 +27,12 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  name         string               Display name of the elment
     ---@field  id           string               Generative identifier of the element
 ---------------------------------------------------------------------------------------
----@class LibSettings.Option
-    ---@field  value        any                  Value of the option
-    ---@field  name         string               Display name of the option
-    ---@field  tooltip      string               Optional tooltip line for the option
-    ---@field  disabled     boolean              Option is disabled
+---@class LibSettings.AnchorList
+    ---@field  [1]          FramePoint           Anchor point
+    ---@field  [2]          number               X offset
+    ---@field  [3]          number               Y offset
+---------------------------------------------------------------------------------------
+---@class LibSettings.Anchors<i, LibSettings.AnchorList>
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.OptionList
     ---@field  [1]          any                  Value of the option
@@ -110,6 +111,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Category.Canvas : LibSettings.ListItem
     ---@field  frame        LibSettings.Canvas   Frame to insert in the canvas
+    ---@field  anchor       LibSettings.Anchors  Anchor points for the frame
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Base
     ---@field  id           string               Unique identifier of the object
@@ -127,15 +129,27 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Layout : LibSettings.Result.Base
     ---@field  object       Blizzard.Category    Category object that was created
-    ---@field  layout       LibSettings.Layout   Layout object that was created
+    ---@field  layout       Blizzard.Layout      Layout object that was created
     ---@field  children     table                Nested table of created child widgets
     ---@field  setValue     LibSettings.Setter   Callback function for setting a value
     ---@field  getValue     LibSettings.Getter   Callback function for getting a value
 ---------------------------------------------------------------------------------------
+---@class Blizzard.Option
+    ---@field  value        any                  Value of the option
+    ---@field  name         string               Display name of the option
+    ---@field  tooltip      string               Optional tooltip line for the option
+    ---@field  disabled     boolean              Option is disabled
+---------------------------------------------------------------------------------------
+---@classID Blizzard.Anchor
+    ---@field  point        FramePoint           Anchor point
+    ---@field  x            number               X offset
+    ---@field  y            number               Y offset
+---------------------------------------------------------------------------------------
 ---@alias Blizzard.Setting     table
 ---@alias Blizzard.Initializer table
 ---@alias Blizzard.Category    table
----@alias LibSettings.Layout   table
+---@alias Blizzard.Layout      table
+---------------------------------------------------------------------------------------
 ---@alias LibSettings.Value    string|number|boolean
 ---@alias LibSettings.Pred     function|table<integer, function>
 ---@alias LibSettings.Event    string|table<integer, string>
@@ -145,8 +159,8 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting, value: any)
 ---@alias LibSettings.Set      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Setter
 ---@alias LibSettings.Get      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Getter
----@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : LibSettings.Option[]
----@alias LibSettings.OptList  fun(options: LibSettings.Options) : LibSettings.Option[]
+---@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : Blizzard.Option[]
+---@alias LibSettings.OptList  fun(options: LibSettings.Options) : Blizzard.Option[]
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
 ---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
 ---------------------------------------------------------------------------
@@ -298,8 +312,7 @@ local function GetCallbacks(props, parent)
         MakeGetter(props, parent) --[[@as LibSettings.Get]];
 end
 
-local PackPredicates, UnpackPredicates, UnpackEvents;
-local AddShownPredicates, AddModifyPredicates, SetParentInitializer;
+local PackPredicates, AddShownPredicates, AddModifyPredicates, SetParentInitializer, AddAnchorPoints;
 do -- Closure generators for packing and unpacking predicates and events.
     local function __unpack(requiredType, predicate)
         if type(predicate) == requiredType then
@@ -324,14 +337,25 @@ do -- Closure generators for packing and unpacking predicates and events.
             end
         end
     end
+    local function __addtbl(method, _unpack, init, predicates)
+        if predicates then
+            for key, predicate in _unpack(predicates) do
+                init[method](init, unpack(predicate));
+            end
+        end
+    end
+
+    local UnpackPredicates, UnpackEvents, UnpackAnchors;
 
     PackEvents           = GenerateClosure(__pack,   'string')   --[[@as function]];
     UnpackEvents         = GenerateClosure(__unpack, 'string')   --[[@as function]];
     PackPredicates       = GenerateClosure(__pack,   'function') --[[@as function]];
     UnpackPredicates     = GenerateClosure(__unpack, 'function') --[[@as function]];
+    UnpackAnchors        = GenerateClosure(__unpack, 'table')    --[[@as function]];
     AddStateFrameEvents  = GenerateClosure(__add,    'AddStateFrameEvent', UnpackEvents)       --[[@as function]];
     AddShownPredicates   = GenerateClosure(__add,    'AddShownPredicate',  UnpackPredicates)   --[[@as function]];
     AddModifyPredicates  = GenerateClosure(__add,    'AddModifyPredicate', UnpackPredicates)   --[[@as function]];
+    AddAnchorPoints      = GenerateClosure(__addtbl, 'AddAnchorPoint',     UnpackAnchors)      --[[@as function]];
 
     local function ResolveAndSetParentInitializer(init, parent, modifier)
         if not modifier then
@@ -416,8 +440,8 @@ Lib.Factory = {
     = function(props)
         local name, id = GetIdentity(props);
         local set, get = GetCallbacks(props);
-        local object, layout = Settings.RegisterVerticalLayoutCategory(name);
-        return object, id, layout, set, get;
+        local init, layout = Settings.RegisterVerticalLayoutCategory(name);
+        return init, id, layout, set, get;
     end;
 
     [Types.CanvasLayoutCategory]
@@ -426,8 +450,9 @@ Lib.Factory = {
     = function(props)
         local name, id = GetIdentity(props);
         local set, get = GetCallbacks(props);
-        local object, layout = Settings.RegisterCanvasLayoutCategory(props.frame, name);
-        return object, id, layout, set, get;
+        local init, layout = Settings.RegisterCanvasLayoutCategory(props.frame, name);
+        AddAnchorPoints(init, props.anchor);
+        return init, id, layout, set, get;
     end;
 
     [Types.VerticalLayoutSubcategory]
@@ -436,8 +461,8 @@ Lib.Factory = {
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
-        local object, layout = Settings.RegisterVerticalLayoutSubcategory(parent.object, name);
-        return object, id, layout, set, get;
+        local init, layout = Settings.RegisterVerticalLayoutSubcategory(parent.object, name);
+        return init, id, layout, set, get;
     end;
 
     [Types.CanvasLayoutSubcategory]
@@ -446,8 +471,9 @@ Lib.Factory = {
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
-        local object, layout = Settings.RegisterCanvasLayoutSubcategory(parent.object, props.frame, name);
-        return object, id, layout, set, get;
+        local init, layout = Settings.RegisterCanvasLayoutSubcategory(parent.object, props.frame, name);
+        AddAnchorPoints(init, props.anchor);
+        return init, id, layout, set, get;
     end;
 
     -- Widgets
