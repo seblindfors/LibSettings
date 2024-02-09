@@ -164,7 +164,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
 ---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
 ---------------------------------------------------------------------------
-
+--[[ TODO:
     'Category',                   -- (category, group)
     'AddOnCategory',              -- (category)
     'Initializer',                -- (category, initializer)
@@ -172,6 +172,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     'ProxySetting',               -- (categoryTbl, variable, variableTbl, variableType, name, defaultValue, getValue, setValue, commitValue)
     'CVarSetting',                -- (categoryTbl, variable, variableType, name)
     'ModifiedClickSetting'       -- (categoryTbl, variable, name, defaultValue)
+]]
 }; local Types = Lib.Types;
 
 function Lib:AddCustomType(name, factory, silent)
