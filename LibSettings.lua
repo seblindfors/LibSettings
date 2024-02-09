@@ -140,7 +140,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  tooltip      string               Optional tooltip line for the option
     ---@field  disabled     boolean              Option is disabled
 ---------------------------------------------------------------------------------------
----@classID Blizzard.Anchor
+---@class Blizzard.Anchor
     ---@field  point        FramePoint           Anchor point
     ---@field  x            number               X offset
     ---@field  y            number               Y offset
