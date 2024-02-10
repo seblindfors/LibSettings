@@ -10,12 +10,13 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     CheckBox                    =_()--[[@as LibSettings.Types.CheckBox              ]];
     CheckBoxDropDown            =_()--[[@as LibSettings.Types.CheckBoxDropDown      ]];
     CheckBoxSlider              =_()--[[@as LibSettings.Types.CheckBoxSlider        ]];
+    Color                       =_()--[[@as LibSettings.Types.Color                 ]];
     DropDown                    =_()--[[@as LibSettings.Types.DropDown              ]];
     Element                     =_()--[[@as LibSettings.Types.Element               ]];
     Header                      =_()--[[@as LibSettings.Types.Header                ]];
+    Key                         =_()--[[@as LibSettings.Types.Key                   ]];
     Slider                      =_()--[[@as LibSettings.Types.Slider                ]];
     Spacer                      =_()--[[@as LibSettings.Types.Spacer                ]];
-    Key                         =_()--[[@as LibSettings.Types.Key                   ]];
     -- Containers
     CanvasLayoutCategory        =_()--[[@as LibSettings.Category.Canvas             ]];
     CanvasLayoutSubcategory     =_()--[[@as LibSettings.Category.Canvas             ]];
@@ -55,6 +56,7 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     ---@field  modify       LibSettings.Pred     Predicate(s) for allowing modification
     ---@field  event        LibSettings.Event    Event to trigger the element to update
     ---@field  parent       string               Relative key to parent initializer
+    ---@field  new          boolean              Show new tag on the element
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Setting : LibSettings.Variable
     ---@field  default      LibSettings.Value    Default value of the setting
@@ -164,16 +166,16 @@ Lib.Types                       =  {--[[@enum (key) Types                       
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
 ---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
 ---------------------------------------------------------------------------
---[[ TODO:
+};
+
+--[[ TODO?
     'Category',                   -- (category, group)
     'AddOnCategory',              -- (category)
     'Initializer',                -- (category, initializer)
-    'AddOnSetting',               -- (categoryTbl, name, variable, variableType, defaultValue)
     'ProxySetting',               -- (categoryTbl, variable, variableTbl, variableType, name, defaultValue, getValue, setValue, commitValue)
     'CVarSetting',                -- (categoryTbl, variable, variableType, name)
     'ModifiedClickSetting'       -- (categoryTbl, variable, name, defaultValue)
 ]]
-}; local Types = Lib.Types;
 
 function Lib:AddCustomType(name, factory, silent)
     local typeExists = not not self.Types[name];
@@ -183,6 +185,8 @@ function Lib:AddCustomType(name, factory, silent)
     self.Types[name] = _();
     self.Factory[self.Types[name]] = factory;
 end
+
+local Types = Lib.Types;
 
 ---------------------------------------------------------------
 -- Helpers
@@ -313,7 +317,7 @@ local function GetCallbacks(props, parent)
         MakeGetter(props, parent) --[[@as LibSettings.Get]];
 end
 
-local PackPredicates, AddShownPredicates, AddModifyPredicates, SetParentInitializer, AddAnchorPoints;
+local PackPredicates, AddShownPredicates, AddModifyPredicates, AddStateFrameEvents, SetParentInitializer, AddAnchorPoints;
 do -- Closure generators for packing and unpacking predicates and events.
     local function __unpack(requiredType, predicate)
         if type(predicate) == requiredType then
@@ -348,7 +352,6 @@ do -- Closure generators for packing and unpacking predicates and events.
 
     local UnpackPredicates, UnpackEvents, UnpackAnchors;
 
-    PackEvents           = GenerateClosure(__pack,   'string')   --[[@as function]];
     UnpackEvents         = GenerateClosure(__unpack, 'string')   --[[@as function]];
     PackPredicates       = GenerateClosure(__pack,   'function') --[[@as function]];
     UnpackPredicates     = GenerateClosure(__unpack, 'function') --[[@as function]];
@@ -391,6 +394,12 @@ local function MountCommon(init, props, parent)
     if not SetParentInitializer(init, parent, props.parent, props.modify) then
         AddModifyPredicates(init, props.modify);
     end
+    if props.new then
+        local setting = init.GetSetting and init:GetSetting();
+        if setting then
+            setting:SetNewTagShown(true);
+        end
+    end
 end
 
 ---------------------------------------------------------------
@@ -427,7 +436,7 @@ end
 -- and its layout object, as well as any additional callbacks for setting and getting values.
 ---@type table<LibSettings.ListItem, LibSettings.Factory>
 Lib.Factory = {
-    -- TODO
+    -- TODO?
     --[[Types.AddOnCategory] = function(props)
         local name, id = GetIdentity(props);
         local category, layout = Settings.GetCategory(name);
@@ -740,7 +749,7 @@ Lib.Factory = {
             local isButtonRelease = not isDown;
             if not self:IsBindingModeActive() then
                 if isButtonRelease then
-                    self:EnableKeyboard(false);
+                    self:EnableInputs(false);
                 end
                 return;
             end
@@ -759,9 +768,14 @@ Lib.Factory = {
             if self.receivedNonMetaKeyInput or isButtonRelease then
                 self:NotifyBindingCompleted(true, self.keys);
                 if isButtonRelease then
-                    self:EnableKeyboard(false);
+                    self:EnableInputs(false);
                 end
             end
+        end
+
+        function CustomBindingButtonMixin:EnableInputs(enabled)
+            self:EnableKeyboard(enabled);
+            self:EnableGamePadButton(enabled);
         end
 
         function CustomBindingButtonMixin:SetBindingModeActive(isActive, preventBindingManagerUpdate)
@@ -771,7 +785,7 @@ Lib.Factory = {
             BindingButtonTemplate_SetSelected(self, isActive);
             if isActive then
                 self:RegisterForClicks('AnyDown', 'AnyUp');
-                self:EnableKeyboard(true);
+                self:EnableInputs(true);
             else
                 self:RegisterForClicks('LeftButtonUp', 'RightButtonUp');
             end
@@ -827,6 +841,7 @@ Lib.Factory = {
                     CustomBindingManager:SetHandlerRegistered(self, true);
                     self:SetWidth(200);
                     self:Show();
+                    self:EnableInputs(false);
                     local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType());
                     if bindingText then
                         self:SetText(bindingText);
@@ -848,6 +863,19 @@ Lib.Factory = {
             end;
 
             return init, id, nil, set, get;
+        end
+    end)() --[[@as LibSettings.Factory]];
+
+    [Types.Color]
+    = (function()
+        ---@param  props  LibSettings.Types.Color
+        ---@return LibSettings.Result.Init ...
+        return function(props, parent, index)
+            local init, id = Lib.Factory[Types.Element](props, parent, index);
+            local data = init:GetData();
+            local setting = Settings.RegisterAddOnSetting(parent.object, data.variable, Settings.VarType.String, props.default);
+            init:SetSetting(setting);
+            --TODO
         end
     end)() --[[@as LibSettings.Factory]];
 }; local Factory = Lib.Factory;
@@ -936,7 +964,7 @@ end
 ---------------------------------------------------------------
 -- LoadAddOnCategory
 ---------------------------------------------------------------
--- Load a category from an addon, and call a callback when it's
+-- Load a category from an addon, and fire a callback when it's
 -- done. The category is not created until the addon is loaded,
 -- allowing saved variables to be loaded first.
 ---------------------------------------------------------------
@@ -955,7 +983,7 @@ end
 ---------------------------------------------------------------
 -- AppendAddOnCategory
 ---------------------------------------------------------------
--- Append more settings to an addon category, and call a
+-- Append more settings to an addon category, and fire a
 -- callback when it's done. The category is not created until
 -- the addon in question is loaded, allowing saved variables
 -- to be loaded first.
