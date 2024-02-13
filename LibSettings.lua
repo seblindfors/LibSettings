@@ -24,148 +24,6 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     VerticalLayoutSubcategory   =_()--[[@as LibSettings.Category.Vertical           ]];
     ExpandableSection           =_()--[[@as LibSettings.Types.ExpandableSection     ]];
 ---------------------------------------------------------------------------------------
----@class LibSettings.ListItem
-    ---@field  name         string               Display name of the elment
-    ---@field  id           string               Generative identifier of the element
----------------------------------------------------------------------------------------
----@class LibSettings.AnchorList
-    ---@field  [1]          FramePoint           Anchor point
-    ---@field  [2]          number               X offset
-    ---@field  [3]          number               Y offset
----------------------------------------------------------------------------------------
----@class LibSettings.Anchors<i, LibSettings.AnchorList>
----------------------------------------------------------------------------------------
----@class LibSettings.OptionList
-    ---@field  [1]          any                  Value of the option
-    ---@field  [2]          string               Display name of the option
-    ---@field  [3]          string               Optional tooltip line for the option
----------------------------------------------------------------------------------------
----@class LibSettings.Options<i, LibSettings.OptionList>
----------------------------------------------------------------------------------------
----@class LibSettings.Canvas : LibSettings.ListItem
-    ---@field  OnCommit      function            Callback function for committing
-    ---@field  OnDefault     function            Callback function for resetting
-    ---@field  OnRefresh     function            Callback function for refreshing
-    ---@source Interface/SharedXML/Settings/Blizzard_SettingsCanvas.lua
----------------------------------------------------------------------------------------
----@class LibSettings.Variable : LibSettings.ListItem
-    ---@field  variable     string               Unique variable ID of the element
-    ---@field  search       boolean              Show the element in search results
-    ---@field  tooltip      string               Tooltip for the element
-    ---@field  show         LibSettings.Pred     Predicate(s) for showing the element
-    ---@field  modify       LibSettings.Pred     Predicate(s) for allowing modification
-    ---@field  event        LibSettings.Event    Event to trigger the element to update
-    ---@field  parent       string               Relative key to parent initializer
-    ---@field  new          boolean              Show new tag on the element
----------------------------------------------------------------------------------------
----@class LibSettings.Setting : LibSettings.Variable
-    ---@field  default      LibSettings.Value    Default value of the setting
-    ---@field  set          function             Callback function for setting a value
-    ---@field  get          function             Function to get current value
-    ---@field  key          any                  Optional key for value in storage table
-    ---@field  table        table|string         Table/global ref. to store value
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Header : LibSettings.ListItem
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Spacer : LibSettings.ListItem
----------------------------------------------------------------------------------------
----@class LibSettings.Types.ExpandableSection : LibSettings.ListItem
-    ---@field  expanded     boolean              Section is expanded by default
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Key : LibSettings.Setting
-    ---@field  agnostic     boolean              Key chord is agnostic to meta key side
-    ---@field  single       boolean              Key chord is single key
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Element : LibSettings.Variable
-    ---@field  width        number               Width of the element : DEF_ELEM_WIDTH
-    ---@field  height       number               Height of the element : DEF_ELEM_HEIGHT
-    ---@field  extent       number               Extent of the element (height + padding)
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Binding : LibSettings.Variable
-    ---@field  binding      string               Binding to modify
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Button : LibSettings.Variable
-    ---@field  click        function             Callback function for the button
-    ---@field  title        string               Title of the button
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBox : LibSettings.Setting
-    ---@field  default      boolean              Default value of the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Types.DropDown : LibSettings.Setting
-    ---@field  default      any                  Default value of the dropdown
-    ---@field  options      LibSettings.Options | LibSettings.OptGen Options table or generator
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Slider : LibSettings.Setting
-    ---@field  default      number               Default value of the slider
-    ---@field  min          number               Minimum value of the slider
-    ---@field  max          number               Maximum value of the slider
-    ---@field  step         number               Step value of the slider
-    ---@field  format       function             Function to format the slider value
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBoxDropDown : LibSettings.Types.CheckBox
-    ---@field [1] LibSettings.Types.DropDown      Dropdown next to the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBoxSlider : LibSettings.Types.CheckBox
-    ---@field [1] LibSettings.Types.Slider        Slider next to the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Category.Vertical : LibSettings.Setting
-    ---@field [1] table<integer, LibSettings.ListItem> List of child elements
----------------------------------------------------------------------------------------
----@class LibSettings.Category.Canvas : LibSettings.ListItem
-    ---@field  frame        LibSettings.Canvas   Frame to insert in the canvas
-    ---@field  anchor       LibSettings.Anchors  Anchor points for the frame
----------------------------------------------------------------------------------------
----@class LibSettings.Result.Base
-    ---@field  id           string               Unique identifier of the object
----------------------------------------------------------------------------------------
----@class LibSettings.Result.Init : LibSettings.Result.Base
-    ---@field  object       Blizzard.Initializer Widget object that was created
----------------------------------------------------------------------------------------
----@class LibSettings.Result.Setting : LibSettings.Result.Init
-    ---@field  setValue     LibSettings.SetValue Wrapped function for setting a value
-    ---@field  getValue     LibSettings.GetValue Wrapped function for getting a value
----------------------------------------------------------------------------------------
----@class LibSettings.Result.Combined : LibSettings.Result.Setting
-    ---@field  setOption    LibSettings.SetValue Wrapped function for setting an option
-    ---@field  getOption    LibSettings.GetValue Wrapped function for getting an option
----------------------------------------------------------------------------------------
----@class LibSettings.Result.Layout : LibSettings.Result.Base
-    ---@field  object       Blizzard.Category    Category object that was created
-    ---@field  layout       Blizzard.Layout      Layout object that was created
-    ---@field  children     table                Nested table of created child widgets
-    ---@field  setValue     LibSettings.Setter   Callback function for setting a value
-    ---@field  getValue     LibSettings.Getter   Callback function for getting a value
----------------------------------------------------------------------------------------
----@class Blizzard.Option
-    ---@field  value        any                  Value of the option
-    ---@field  name         string               Display name of the option
-    ---@field  tooltip      string               Optional tooltip line for the option
-    ---@field  disabled     boolean              Option is disabled
----------------------------------------------------------------------------------------
----@class Blizzard.Anchor
-    ---@field  point        FramePoint           Anchor point
-    ---@field  x            number               X offset
-    ---@field  y            number               Y offset
----------------------------------------------------------------------------------------
----@alias Blizzard.Setting     table
----@alias Blizzard.Initializer table
----@alias Blizzard.Category    table
----@alias Blizzard.Layout      table
----------------------------------------------------------------------------------------
----@alias LibSettings.Value    string|number|boolean
----@alias LibSettings.Pred     function|table<integer, function>
----@alias LibSettings.Event    string|table<integer, string>
----@alias LibSettings.SetValue fun(value: any)
----@alias LibSettings.GetValue fun() : any
----@alias LibSettings.Getter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting) : any
----@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting, value: any)
----@alias LibSettings.Set      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Setter
----@alias LibSettings.Get      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Getter
----@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : Blizzard.Option[]
----@alias LibSettings.OptList  fun(options: LibSettings.Options) : Blizzard.Option[]
----@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
----@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
----------------------------------------------------------------------------
 };
 
 --[[ TODO?
@@ -407,23 +265,29 @@ end
 ---------------------------------------------------------------
 local Pools = {}; Lib.Pools = Pools;
 
-function Lib:AcquireFromPool(frameType, frameTemplate, parent, init)
-    local poolID = frameType..'.'..frameTemplate;
+function Lib:AcquireFromPool(wType, wTemplate, init, parent, ...)
+    local poolID = wType..'.'..tostring(wTemplate);
     if not self.Pools[poolID] then
-        self.Pools[poolID] = CreateFramePool(frameType, nil, frameTemplate);
+        if wType:match('Texture') then
+            self.Pools[poolID] = CreateTexturePool(UIParent, wTemplate, ...);
+        elseif wType:match('FontString') then
+            self.Pools[poolID] = CreateFontStringPool(UIParent, wTemplate, ...);
+        else
+            self.Pools[poolID] = CreateFramePool(wType, nil, wTemplate, ...);
+        end
     end
-    local frame = self.Pools[poolID]:Acquire();
-    frame:SetParent(parent);
+    local widget = self.Pools[poolID]:Acquire();
+    widget:SetParent(parent);
     if init then
-        init(frame);
+        init(widget);
     end
-    return frame;
+    return widget;
 end
 
-function Lib:ReleaseToPool(frameType, frameTemplate, frame)
-    local poolID = frameType..'.'..frameTemplate;
+function Lib:ReleaseToPool(wType, wTemplate, widget)
+    local poolID = wType..'.'..tostring(wTemplate);
     if self.Pools[poolID] then
-        self.Pools[poolID]:Release(frame);
+        self.Pools[poolID]:Release(widget);
     end
 end
 
@@ -804,7 +668,7 @@ Lib.Factory = {
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
             local data = init:GetData();
-            local setting = Settings.RegisterAddOnSetting(parent.object, data.variable, Settings.VarType.String, props.default);
+            local setting = Settings.RegisterAddOnSetting(parent.object, data.name, data.variable, Settings.VarType.String, props.default);
             init:SetSetting(setting);
             local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
 
@@ -812,7 +676,9 @@ Lib.Factory = {
                 function() return CreateKeyChordTableFromString(get()) end,
                 function(keys) set(FilterSingle(props, FilterAgnostic(props, CreateKeyChordStringFromTable(keys)))) end
             );
+
             local handler = CustomBindingHandler:CreateHandler(setting);
+            -- TODO: mount callback for setting key through the panel, like defaults
 
             handler:SetOnBindingModeActivatedCallback(function(isActive)
                 if isActive then
@@ -825,7 +691,7 @@ Lib.Factory = {
                 if completedSuccessfully then
                     SettingsPanel.OutputText:SetText(KEY_BOUND);
                     local finalValue = GetBindingText(get());
-                    for handler, button in CustomBindingManager:EnumerateHandlers(setting) do
+                    for _, button in CustomBindingManager:EnumerateHandlers(setting) do
                         button:OnBindingTextChanged(finalValue);
                     end
                 end
@@ -834,32 +700,32 @@ Lib.Factory = {
             local elementInitializer = init.InitFrame;
             init.InitFrame = function(initializer, self)
                 elementInitializer(initializer, self);
-                self.CustomBindingButton = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', self, function(self)
-                    Mixin(self, CustomBindingButtonMixin);
-                    self:SetCustomBindingHandler(handler);
-                    self:SetCustomBindingType(setting);
-                    CustomBindingManager:SetHandlerRegistered(self, true);
-                    self:SetWidth(200);
-                    self:Show();
-                    self:EnableInputs(false);
-                    local bindingText = CustomBindingManager:GetBindingText(self:GetCustomBindingType());
+                data.button = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', function(button)
+                    Mixin(button, CustomBindingButtonMixin);
+                    button:SetCustomBindingHandler(handler);
+                    button:SetCustomBindingType(setting);
+                    CustomBindingManager:SetHandlerRegistered(button, true);
+                    button:SetWidth(200);
+                    button:Show();
+                    button:EnableInputs(false);
+                    local bindingText = CustomBindingManager:GetBindingText(button:GetCustomBindingType());
                     if bindingText then
-                        self:SetText(bindingText);
-                        self:SetAlpha(1);
+                        button:SetText(bindingText);
+                        button:SetAlpha(1);
                     else
-                        self:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND));
-                        self:SetAlpha(0.8);
+                        button:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND));
+                        button:SetAlpha(0.8);
                     end
-                end)
-                self.CustomBindingButton:SetPoint('LEFT', self, 'CENTER', -80, 0);
+                end, self);
+                data.button:SetPoint('LEFT', self, 'CENTER', -80, 0);
             end;
 
             local elementResetter = init.Resetter;
             init.Resetter = function(initializer, self)
                 elementResetter(initializer, self);
-                CustomBindingManager:SetHandlerRegistered(self.CustomBindingButton, false);
-                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', self.CustomBindingButton);
-                self.CustomBindingButton = nil;
+                CustomBindingManager:SetHandlerRegistered(data.button, false);
+                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', data.button);
+                data.button = nil;
             end;
 
             return init, id, nil, set, get;
@@ -868,14 +734,90 @@ Lib.Factory = {
 
     [Types.Color]
     = (function()
+
+        local function OnColorChanged(color, set, swatch)
+            local r, g, b = ColorPickerFrame:GetColorRGB();
+            local a = ColorPickerFrame:GetColorAlpha();
+            color:SetRGBA(r, g, b, a);
+            swatch:SetVertexColor(r, g, b, a);
+            set(color:GenerateHexColor());
+        end
+
+        local function OnColorCancel(color, set, swatch)
+            local r, g, b, a = ColorPickerFrame:GetPreviousValues();
+            color:SetRGBA(r, g, b, a);
+            swatch:SetVertexColor(r, g, b, a);
+            set(color:GenerateHexColor());
+        end
+
+        local function OnColorButtonClick(data, set, self)
+            local color, swatch = data.color, data.swatch;
+            local r, g, b, a = color:GetRGBA();
+            local onColorChanged = GenerateClosure(OnColorChanged, color, set, swatch);
+            ColorPickerFrame:SetupColorPickerAndShow({
+                hasOpacity = true;
+                swatchFunc = onColorChanged;
+                opacityFunc = onColorChanged;
+                cancelFunc = GenerateClosure(OnColorCancel, color, set, swatch);
+                r = r; g = g; b = b; opacity = a;
+            })
+        end
+
         ---@param  props  LibSettings.Types.Color
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
             local data = init:GetData();
-            local setting = Settings.RegisterAddOnSetting(parent.object, data.variable, Settings.VarType.String, props.default);
+            local setting = Settings.RegisterAddOnSetting(parent.object, data.name, data.variable, Settings.VarType.String, props.default);
             init:SetSetting(setting);
-            --TODO
+            local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
+
+            -- TODO: mount callback for setting color through the panel, like defaults
+            data.color = CreateColorFromHexString(get());
+
+            local elementInitializer = init.InitFrame;
+            init.InitFrame = function(initializer, self)
+                elementInitializer(initializer, self);
+                data.button = Lib:AcquireFromPool('Button', nil, function(button)
+                    data.swatch = Lib:AcquireFromPool('Texture', 'OVERLAY', function(swatch)
+                        swatch:SetAllPoints(button);
+                        swatch:SetTexture('Interface\\ChatFrame\\ChatFrameColorSwatch');
+                        swatch:Show();
+                        swatch:SetVertexColor(data.color:GetRGBA());
+                    end, self);
+                    data.background = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(background)
+                        background:SetColorTexture(1, 1, 1);
+                        background:SetAllPoints(data.swatch);
+                        background:Show();
+                    end, self);
+                    data.checkers = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(checkers)
+                        checkers:SetTexture(188523); -- Tileset\\Generic\\Checkers
+                        checkers:SetTexCoord(.25, 0, 0.5, .25);
+                        checkers:SetDesaturated(true);
+                        checkers:SetVertexColor(1, 1, 1, 0.75);
+                        checkers:SetAllPoints(data.swatch);
+                        checkers:Show();
+                    end, self);
+                    button:Show();
+                    button:SetSize(24, 24);
+                    button:SetScript('OnClick', GenerateClosure(OnColorButtonClick, data, set));
+                end, self);
+                data.button:SetPoint('LEFT', self, 'CENTER', -80, 0);
+            end;
+
+            local elementResetter = init.Resetter;
+            init.Resetter = function(initializer, self)
+                elementResetter(initializer, self);
+                Lib:ReleaseToPool('Button', nil, data.button);
+                Lib:ReleaseToPool('Texture', 'OVERLAY', data.swatch);
+                Lib:ReleaseToPool('Texture', 'BACKGROUND', data.background);
+                Lib:ReleaseToPool('Texture', 'BACKGROUND', data.checkers);
+                data.button:SetScript('OnClick', nil);
+                ---@diagnostic disable-next-line: unbalanced-assignments
+                data.button, data.swatch, data.background, data.checkers = nil;
+            end;
+
+            return init, id, nil, set, get;
         end
     end)() --[[@as LibSettings.Factory]];
 }; local Factory = Lib.Factory;
@@ -1016,3 +958,152 @@ setmetatable(Lib, {
     __call  = Lib.Create;
     __index = Lib.Get;
 });
+
+---------------------------------------------------------------------------------------
+-- Documentation
+---------------------------------------------------------------------------------------
+---@class LibSettings.ListItem
+    ---@field  name         string               Display name of the elment
+    ---@field  id           string               Generative identifier of the element
+---------------------------------------------------------------------------------------
+---@class LibSettings.AnchorList
+    ---@field  [1]          FramePoint           Anchor point
+    ---@field  [2]          number               X offset
+    ---@field  [3]          number               Y offset
+---------------------------------------------------------------------------------------
+---@class LibSettings.Anchors<i, LibSettings.AnchorList>
+---------------------------------------------------------------------------------------
+---@class LibSettings.OptionList
+    ---@field  [1]          any                  Value of the option
+    ---@field  [2]          string               Display name of the option
+    ---@field  [3]          string               Optional tooltip line for the option
+---------------------------------------------------------------------------------------
+---@class LibSettings.Options<i, LibSettings.OptionList>
+---------------------------------------------------------------------------------------
+---@class LibSettings.Canvas : LibSettings.ListItem
+    ---@field  OnCommit      function            Callback function for committing
+    ---@field  OnDefault     function            Callback function for resetting
+    ---@field  OnRefresh     function            Callback function for refreshing
+    ---@source Interface/SharedXML/Settings/Blizzard_SettingsCanvas.lua
+---------------------------------------------------------------------------------------
+---@class LibSettings.Variable : LibSettings.ListItem
+    ---@field  variable     string               Unique variable ID of the element
+    ---@field  search       boolean              Show the element in search results
+    ---@field  tooltip      string               Tooltip for the element
+    ---@field  show         LibSettings.Pred     Predicate(s) for showing the element
+    ---@field  modify       LibSettings.Pred     Predicate(s) for allowing modification
+    ---@field  event        LibSettings.Event    Event to trigger the element to update
+    ---@field  parent       string               Relative key to parent initializer
+    ---@field  new          boolean              Show new tag on the element
+---------------------------------------------------------------------------------------
+---@class LibSettings.Setting : LibSettings.Variable
+    ---@field  default      LibSettings.Value    Default value of the setting
+    ---@field  set          function             Callback function for setting a value
+    ---@field  get          function             Function to get current value
+    ---@field  key          any                  Optional key for value in storage table
+    ---@field  table        table|string         Table/global ref. to store value
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Binding : LibSettings.Variable
+    ---@field  binding      string               Binding to modify
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Button : LibSettings.Variable
+    ---@field  click        function             Callback function for the button
+    ---@field  title        string               Title of the button
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.CheckBox : LibSettings.Setting
+    ---@field  default      boolean              Default value of the checkbox
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.CheckBoxDropDown : LibSettings.Types.CheckBox
+    ---@field [1] LibSettings.Types.DropDown      Dropdown next to the checkbox
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.CheckBoxSlider : LibSettings.Types.CheckBox
+    ---@field [1] LibSettings.Types.Slider        Slider next to the checkbox
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Color : LibSettings.Setting
+    ---@field  default      string               Default value of the color in hex
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.DropDown : LibSettings.Setting
+    ---@field  default      any                  Default value of the dropdown
+    ---@field  options      LibSettings.Options | LibSettings.OptGen Options table or generator
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Element : LibSettings.Variable
+    ---@field  width        number               Width of the element : DEF_ELEM_WIDTH
+    ---@field  height       number               Height of the element : DEF_ELEM_HEIGHT
+    ---@field  extent       number               Extent of the element (height + padding)
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.ExpandableSection : LibSettings.ListItem
+    ---@field  expanded     boolean              Section is expanded by default
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Header : LibSettings.ListItem
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Key : LibSettings.Setting
+    ---@field  agnostic     boolean              Key chord is agnostic to meta key side
+    ---@field  single       boolean              Key chord is single key
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Slider : LibSettings.Setting
+    ---@field  default      number               Default value of the slider
+    ---@field  min          number               Minimum value of the slider
+    ---@field  max          number               Maximum value of the slider
+    ---@field  step         number               Step value of the slider
+    ---@field  format       function             Function to format the slider value
+---------------------------------------------------------------------------------------
+---@class LibSettings.Types.Spacer : LibSettings.ListItem
+---------------------------------------------------------------------------------------
+---@class LibSettings.Category.Vertical : LibSettings.Setting
+    ---@field [1] table<integer, LibSettings.ListItem> List of child elements
+---------------------------------------------------------------------------------------
+---@class LibSettings.Category.Canvas : LibSettings.ListItem
+    ---@field  frame        LibSettings.Canvas   Frame to insert in the canvas
+    ---@field  anchor       LibSettings.Anchors  Anchor points for the frame
+---------------------------------------------------------------------------------------
+---@class LibSettings.Result.Base
+    ---@field  id           string               Unique identifier of the object
+---------------------------------------------------------------------------------------
+---@class LibSettings.Result.Init : LibSettings.Result.Base
+    ---@field  object       Blizzard.Initializer Widget object that was created
+---------------------------------------------------------------------------------------
+---@class LibSettings.Result.Setting : LibSettings.Result.Init
+    ---@field  setValue     LibSettings.SetValue Wrapped function for setting a value
+    ---@field  getValue     LibSettings.GetValue Wrapped function for getting a value
+---------------------------------------------------------------------------------------
+---@class LibSettings.Result.Combined : LibSettings.Result.Setting
+    ---@field  setOption    LibSettings.SetValue Wrapped function for setting an option
+    ---@field  getOption    LibSettings.GetValue Wrapped function for getting an option
+---------------------------------------------------------------------------------------
+---@class LibSettings.Result.Layout : LibSettings.Result.Base
+    ---@field  object       Blizzard.Category    Category object that was created
+    ---@field  layout       Blizzard.Layout      Layout object that was created
+    ---@field  children     table                Nested table of created child widgets
+    ---@field  setValue     LibSettings.Setter   Callback function for setting a value
+    ---@field  getValue     LibSettings.Getter   Callback function for getting a value
+---------------------------------------------------------------------------------------
+---@class Blizzard.Option
+    ---@field  value        any                  Value of the option
+    ---@field  name         string               Display name of the option
+    ---@field  tooltip      string               Optional tooltip line for the option
+    ---@field  disabled     boolean              Option is disabled
+---------------------------------------------------------------------------------------
+---@class Blizzard.Anchor
+    ---@field  point        FramePoint           Anchor point
+    ---@field  x            number               X offset
+    ---@field  y            number               Y offset
+---------------------------------------------------------------------------------------
+---@alias Blizzard.Setting     table
+---@alias Blizzard.Initializer table
+---@alias Blizzard.Category    table
+---@alias Blizzard.Layout      table
+---------------------------------------------------------------------------------------
+---@alias LibSettings.Value    string|number|boolean
+---@alias LibSettings.Pred     function|table<integer, function>
+---@alias LibSettings.Event    string|table<integer, string>
+---@alias LibSettings.SetValue fun(value: any)
+---@alias LibSettings.GetValue fun() : any
+---@alias LibSettings.Getter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting) : any
+---@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting, value: any)
+---@alias LibSettings.Set      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Setter
+---@alias LibSettings.Get      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Getter
+---@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : Blizzard.Option[]
+---@alias LibSettings.OptList  fun(options: LibSettings.Options) : Blizzard.Option[]
+---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
+---@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
+---------------------------------------------------------------------------
