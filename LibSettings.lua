@@ -663,6 +663,13 @@ Lib.Factory = {
             self:SetBindingModeActive(false);
         end
 
+        local function OnKeySettingChanged(_, setting, value)
+            local finalValue = GetBindingText(value);
+            for _, button in CustomBindingManager:EnumerateHandlers(setting) do
+                button:OnBindingTextChanged(finalValue);
+            end
+        end
+
         ---@param  props  LibSettings.Types.Key
         ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
@@ -678,7 +685,7 @@ Lib.Factory = {
             );
 
             local handler = CustomBindingHandler:CreateHandler(setting);
-            -- TODO: mount callback for setting key through the panel, like defaults
+            data.OnSettingValueChanged = OnKeySettingChanged;
 
             handler:SetOnBindingModeActivatedCallback(function(isActive)
                 if isActive then
@@ -690,16 +697,13 @@ Lib.Factory = {
                 CustomBindingManager:OnDismissed(setting, completedSuccessfully)
                 if completedSuccessfully then
                     SettingsPanel.OutputText:SetText(KEY_BOUND);
-                    local finalValue = GetBindingText(get());
-                    for _, button in CustomBindingManager:EnumerateHandlers(setting) do
-                        button:OnBindingTextChanged(finalValue);
-                    end
                 end
             end);
 
             local elementInitializer = init.InitFrame;
             init.InitFrame = function(initializer, self)
                 elementInitializer(initializer, self);
+                self.cbrHandles:SetOnValueChangedCallback(setting:GetVariable(), data.OnSettingValueChanged, self);
                 data.button = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', function(button)
                     Mixin(button, CustomBindingButtonMixin);
                     button:SetCustomBindingHandler(handler);
@@ -734,33 +738,42 @@ Lib.Factory = {
 
     [Types.Color]
     = (function()
+        local function GetRGBAHexStringFromColor(color)
+            local r, g, b, a = color:GetRGBAAsBytes();
+            return ('%.2x%.2x%.2x%.2x'):format(a, r, g, b);
+        end
 
-        local function OnColorChanged(color, set, swatch)
+        local function OnColorChanged(color, set)
             local r, g, b = ColorPickerFrame:GetColorRGB();
             local a = ColorPickerFrame:GetColorAlpha();
             color:SetRGBA(r, g, b, a);
-            swatch:SetVertexColor(r, g, b, a);
-            set(color:GenerateHexColor());
+            set(GetRGBAHexStringFromColor(color));
         end
 
-        local function OnColorCancel(color, set, swatch)
+        local function OnColorCancel(color, set)
             local r, g, b, a = ColorPickerFrame:GetPreviousValues();
             color:SetRGBA(r, g, b, a);
-            swatch:SetVertexColor(r, g, b, a);
-            set(color:GenerateHexColor());
+            set(GetRGBAHexStringFromColor(color));
         end
 
-        local function OnColorButtonClick(data, set, self)
-            local color, swatch = data.color, data.swatch;
+        local function OnColorButtonClick(data, set)
+            local color = data.color;
             local r, g, b, a = color:GetRGBA();
-            local onColorChanged = GenerateClosure(OnColorChanged, color, set, swatch);
+            local onColorChanged = GenerateClosure(OnColorChanged, color, set);
             ColorPickerFrame:SetupColorPickerAndShow({
-                hasOpacity = true;
-                swatchFunc = onColorChanged;
+                hasOpacity  = true;
+                swatchFunc  = onColorChanged;
                 opacityFunc = onColorChanged;
-                cancelFunc = GenerateClosure(OnColorCancel, color, set, swatch);
+                cancelFunc  = GenerateClosure(OnColorCancel, color, set);
                 r = r; g = g; b = b; opacity = a;
             })
+        end
+
+        local function OnColorSettingChanged(data, set, _, _, value)
+            data.color = CreateColorFromHexString(value);
+            data.text:SetText(data.color:WrapTextInColorCode(value:upper()));
+            data.swatch:SetVertexColor(data.color:GetRGBA());
+            set(value);
         end
 
         ---@param  props  LibSettings.Types.Color
@@ -772,22 +785,24 @@ Lib.Factory = {
             init:SetSetting(setting);
             local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
 
-            -- TODO: mount callback for setting color through the panel, like defaults
             data.color = CreateColorFromHexString(get());
+            data.OnSettingValueChanged = GenerateClosure(OnColorSettingChanged, data, set);
 
             local elementInitializer = init.InitFrame;
             init.InitFrame = function(initializer, self)
                 elementInitializer(initializer, self);
+                self.cbrHandles:SetOnValueChangedCallback(setting:GetVariable(), data.OnSettingValueChanged, self);
                 data.button = Lib:AcquireFromPool('Button', nil, function(button)
                     data.swatch = Lib:AcquireFromPool('Texture', 'OVERLAY', function(swatch)
-                        swatch:SetAllPoints(button);
+                        swatch:SetPoint('TOPLEFT', button, 'TOPLEFT', -6, 6);
+                        swatch:SetPoint('BOTTOMRIGHT', button, 'BOTTOMRIGHT', 6, -6);
                         swatch:SetTexture('Interface\\ChatFrame\\ChatFrameColorSwatch');
                         swatch:Show();
                         swatch:SetVertexColor(data.color:GetRGBA());
                     end, self);
                     data.background = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(background)
                         background:SetColorTexture(1, 1, 1);
-                        background:SetAllPoints(data.swatch);
+                        background:SetAllPoints(button);
                         background:Show();
                     end, self);
                     data.checkers = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(checkers)
@@ -795,14 +810,21 @@ Lib.Factory = {
                         checkers:SetTexCoord(.25, 0, 0.5, .25);
                         checkers:SetDesaturated(true);
                         checkers:SetVertexColor(1, 1, 1, 0.75);
-                        checkers:SetAllPoints(data.swatch);
+                        checkers:SetAllPoints(button);
                         checkers:Show();
+                    end, self);
+                    data.text = Lib:AcquireFromPool('FontString', 'ARTWORK', function(text)
+                        text:SetFontObject('GameFontHighlight');
+                        text:SetText(data.color:WrapTextInColorCode(get():upper()));
+                        text:SetPoint('LEFT', button, 'RIGHT', 8, 0);
+                        text:Show();
                     end, self);
                     button:Show();
                     button:SetSize(24, 24);
+                    button:SetHitRectInsets(0, -100, 0, 0);
                     button:SetScript('OnClick', GenerateClosure(OnColorButtonClick, data, set));
                 end, self);
-                data.button:SetPoint('LEFT', self, 'CENTER', -80, 0);
+                data.button:SetPoint('LEFT', self, 'CENTER', -78, 0);
             end;
 
             local elementResetter = init.Resetter;
@@ -812,9 +834,11 @@ Lib.Factory = {
                 Lib:ReleaseToPool('Texture', 'OVERLAY', data.swatch);
                 Lib:ReleaseToPool('Texture', 'BACKGROUND', data.background);
                 Lib:ReleaseToPool('Texture', 'BACKGROUND', data.checkers);
+                Lib:ReleaseToPool('FontString', 'ARTWORK', data.text);
                 data.button:SetScript('OnClick', nil);
+                data.button:SetHitRectInsets(0, 0, 0, 0);
                 ---@diagnostic disable-next-line: unbalanced-assignments
-                data.button, data.swatch, data.background, data.checkers = nil;
+                data.button, data.swatch, data.background, data.checkers, data.text = nil;
             end;
 
             return init, id, nil, set, get;
@@ -959,6 +983,8 @@ setmetatable(Lib, {
     __index = Lib.Get;
 });
 
+return
+
 ---------------------------------------------------------------------------------------
 -- Documentation
 ---------------------------------------------------------------------------------------
@@ -1020,7 +1046,7 @@ setmetatable(Lib, {
     ---@field [1] LibSettings.Types.Slider        Slider next to the checkbox
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Types.Color : LibSettings.Setting
-    ---@field  default      string               Default value of the color in hex
+    ---@field  default      string               Default color value in hex (AARRGGBB)
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Types.DropDown : LibSettings.Setting
     ---@field  default      any                  Default value of the dropdown
