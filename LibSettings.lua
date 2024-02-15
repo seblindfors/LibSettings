@@ -918,8 +918,10 @@ end
 
 function Lib:Create(props, owner, layout)
     local result = Create(props, owner, layout);
-    Settings.RegisterAddOnCategory(result.object);
-    self.Registry[result.id] = result;
+    if not owner then
+        Settings.RegisterAddOnCategory(result.object);
+        self.Registry[result.id] = result;
+    end
     return result;
 end
 
@@ -978,12 +980,10 @@ end
 
 Lib.Registry = {};
 
-setmetatable(Lib, {
+return setmetatable(Lib, {
     __call  = Lib.Create;
     __index = Lib.Get;
 });
-
-return
 
 ---------------------------------------------------------------------------------------
 -- Documentation
