@@ -2,6 +2,7 @@ package-as: LibSettings
 
 externals:
   Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
+  Docs: https://github.com/seblindfors/LibSettings.wiki.git
 
 ignore:
   - README.md
