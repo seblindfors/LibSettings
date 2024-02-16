@@ -1,0 +1,8 @@
+package-as: LibSettings
+
+externals:
+  Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
+
+ignore:
+  - README.md
+  - LibSettings.Test.lua

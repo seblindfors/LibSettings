@@ -4,5 +4,14 @@
 ## Interface-Wrath: 30403
 ## Title: LibSettings
 
+## Author: Sebastian Lindfors
+## X-Website: https://github.com/seblindfors/LibSettings
+## X-Curse-Project-ID: 975074
+
+Libs\LibStub\LibStub.lua
+
 LibSettings.lua
-test.lua
+
+#@debug@
+LibSettings.Test.lua
+#@end-debug@

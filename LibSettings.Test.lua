@@ -59,13 +59,21 @@ Settings.RegisterAddOnCategory(category)
 
 local Lib = LibStub('LibSettings') ---@as LibSettings;
 
-Test_SavedVars = {testCheckBox = false, testSlider = 190, selection = 2, testCheckBox2 = true, testKey = 'ALT-SHIFT-A'}
+Test_SavedVars = {testCheckBox = false, testSlider = 190, selection = 2, testCheckBox2 = true, testKey = 'ALT-SHIFT-A', color = 'FFAAD372'}
 
 res = Lib({
     name  = 'Test Addon';
+    id    = 'testAddon';
     type  = Lib.Types.VerticalLayoutCategory;
     table = Test_SavedVars;
     {
+        {
+            type     = Lib.Types.Color;
+            name     = 'Test Color';
+            id       = 'color';
+            tooltip  = 'This is a tooltip for the color.';
+            default  = 'FFAAD372';
+        };
         {
             type     = Lib.Types.Key;
             name     = 'Test Key';
@@ -79,6 +87,7 @@ res = Lib({
             id       = 'testCheckBox';
             tooltip  = 'This is a tooltip for the checkbox.';
             default  = false;
+            new      = true;
             --[[{
                 name     = 'Test Slider';
                 id       = 'testSlider';
