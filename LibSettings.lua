@@ -1,5 +1,5 @@
 ---@class LibSettings
-local Lib = LibStub:NewLibrary('LibSettings', 0.1)
+local Lib = LibStub:NewLibrary('LibSettings', 0.2)
 if not Lib then return end; local _ = CreateCounter();
 ---------------------------------------------------------------------------------------
 Lib.Types                       =  {--[[@enum (key) Types                            ]]
@@ -743,15 +743,50 @@ Lib.Factory = {
             return ('%.2x%.2x%.2x%.2x'):format(a, r, g, b);
         end
 
+        local function GetColorAlpha()
+            if ColorPickerFrame.GetColorAlpha then
+                return ColorPickerFrame:GetColorAlpha();
+            end
+            -- TODO: Remove > 3.4.3.52237
+            return 1 - OpacitySliderFrame:GetValue();
+        end
+
+        local function GetPreviousValues()
+            local picker = ColorPickerFrame;
+            if picker.GetPreviousValues then
+                return picker:GetPreviousValues();
+            end
+            -- TODO: Remove > 3.4.3.52237
+            return unpack(picker.previousValues);
+        end
+
+        local function SetupColorPickerAndShow(info)
+            local picker, swatch = ColorPickerFrame, ColorSwatch;
+            if picker.SetupColorPickerAndShow then
+                return picker:SetupColorPickerAndShow(info);
+            end
+            -- TODO: Remove > 3.4.3.52237
+            picker:Hide()
+            picker:SetColorRGB(info.r, info.g, info.b, info.a)
+            picker.hasOpacity     = info.hasOpacity;
+            picker.opacity        = 1 - info.opacity;
+            picker.previousValues = {info.r, info.g, info.b, info.a};
+            picker.func           = info.swatchFunc;
+            picker.cancelFunc     = info.cancelFunc;
+            picker.opacityFunc    = info.swatchFunc;
+            picker:Show()
+            swatch:SetColorTexture(info.r, info.g, info.b)
+        end
+
         local function OnColorChanged(color, set)
             local r, g, b = ColorPickerFrame:GetColorRGB();
-            local a = ColorPickerFrame:GetColorAlpha();
+            local a = GetColorAlpha();
             color:SetRGBA(r, g, b, a);
             set(GetRGBAHexStringFromColor(color));
         end
 
         local function OnColorCancel(color, set)
-            local r, g, b, a = ColorPickerFrame:GetPreviousValues();
+            local r, g, b, a = GetPreviousValues();
             color:SetRGBA(r, g, b, a);
             set(GetRGBAHexStringFromColor(color));
         end
@@ -760,7 +795,7 @@ Lib.Factory = {
             local color = data.color;
             local r, g, b, a = color:GetRGBA();
             local onColorChanged = GenerateClosure(OnColorChanged, color, set);
-            ColorPickerFrame:SetupColorPickerAndShow({
+            SetupColorPickerAndShow({
                 hasOpacity  = true;
                 swatchFunc  = onColorChanged;
                 opacityFunc = onColorChanged;
