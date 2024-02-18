@@ -170,7 +170,12 @@ local function MountControls(props, setting, set, get)
     end
     if get then
         get = GenerateClosure(get, props, setting);
-        setting:SetValue(get());
+        local currentValue = get();
+        if ( currentValue == nil ) then
+            setting:SetValue(props.default);
+        else
+            setting:SetValue(currentValue);
+        end
     end
     return set, get;
 end
