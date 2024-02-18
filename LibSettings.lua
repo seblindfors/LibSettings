@@ -1,5 +1,5 @@
 ---@class LibSettings
-local Lib = LibStub:NewLibrary('LibSettings', 0.2)
+local Lib = LibStub:NewLibrary('LibSettings', 0.3)
 if not Lib then return end; local _ = CreateCounter();
 ---------------------------------------------------------------------------------------
 Lib.Types                       =  {--[[@enum (key) Types                            ]]
