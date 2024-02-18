@@ -31,7 +31,6 @@ Lib.Types                       =  {--[[@enum (key) Types                       
     'AddOnCategory',              -- (category)
     'Initializer',                -- (category, initializer)
     'ProxySetting',               -- (categoryTbl, variable, variableTbl, variableType, name, defaultValue, getValue, setValue, commitValue)
-    'CVarSetting',                -- (categoryTbl, variable, variableType, name)
     'ModifiedClickSetting'       -- (categoryTbl, variable, name, defaultValue)
 ]]
 
@@ -109,9 +108,9 @@ do -- Closure generators for setting and getting values.
         end
     end
 
-    ---@param  props     LibSettings.Setting Properties of the setting
+    ---@param  props     LibSettings.Setting       Properties of the setting
     ---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
-    ---@return LibSettings.Setter|nil set Callback function for setting a value, if any
+    ---@return LibSettings.Setter|nil set          Callback function for setting a value, if any
     function MakeSetter(props, parent)
         if props.set then
             return props.set;
@@ -124,9 +123,9 @@ do -- Closure generators for setting and getting values.
         end
     end
 
-    ---@param  props     LibSettings.Setting        Properties of the setting
+    ---@param  props     LibSettings.Setting       Properties of the setting
     ---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
-    ---@return LibSettings.Getter|nil get Callback function for getting a value, if any
+    ---@return LibSettings.Getter|nil get          Callback function for getting a value, if any
     function MakeGetter(props, parent)
         if props.get then
             return props.get;
@@ -140,13 +139,30 @@ do -- Closure generators for setting and getting values.
     end
 end
 
+---@param  props     LibSettings.Setting       Properties of the setting
+---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
+---@param  name      string                    Name of the setting
+---@param  variable  string                    Variable name of the setting
+---@param  varType   string                    Type of the setting variable
+local function MakeSetting(props, parent, name, variable, varType)
+    if props.cvar then
+        return Settings.RegisterCVarSetting(parent.object, props.cvar, varType, name);
+    end
+    return Settings.RegisterAddOnSetting(parent.object, name, variable, varType, props.default);
+end
+
 ---@param  props     LibSettings.Setting Properties of the setting
 ---@param  setting   Blizzard.Setting    Setting object
 ---@param  set       LibSettings.Set     Callback function for setting a value
 ---@param  get       LibSettings.Get     Callback function for getting a value
 ---@return LibSettings.SetValue  set     Wrapped function for setting a value
 ---@return LibSettings.GetValue  get     Wrapped function for getting a value
-local function MountSettingChanger(props, setting, set, get)
+local function MountControls(props, setting, set, get)
+    if props.cvar then
+        set = GenerateClosure(setting.SetValue, setting);
+        get = GenerateClosure(setting.GetValue, setting);
+        return set, get;
+    end
     local variable = setting:GetVariable();
     if set then
         Settings.SetOnValueChangedCallback(variable, set, props);
@@ -240,6 +256,7 @@ do -- Closure generators for packing and unpacking predicates and events.
                 assert(parentResult, errorMsg);
                 parentResult = parentResult[key];
             end
+            assert(parentResult, errorMsg);
             return ResolveAndSetParentInitializer(init, parentResult.object, modifier);
         end
     end
@@ -383,14 +400,13 @@ Lib.Factory = {
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
-        local default = props.default;
 
-        local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, Settings.VarType.Boolean, default);
+        local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Boolean);
         if not noCreate then
             init = Settings.CreateCheckBox(parent.object, setting, props.tooltip);
             MountCommon(init, props, parent);
         end
-        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
+        return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
     [Types.Slider]
@@ -399,13 +415,12 @@ Lib.Factory = {
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
-        local default  = props.default;
-        local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, Settings.VarType.Number, default);
+        local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Number);
         if not noCreate then
             init = Settings.CreateSlider(parent.object, setting, CreateSliderOptions(props), props.tooltip);
             MountCommon(init, props, parent);
         end
-        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
+        return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
     [Types.DropDown]
@@ -414,13 +429,12 @@ Lib.Factory = {
     = function(props, parent, index, noCreate)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
-        local default  = props.default;
-        local setting, init = Settings.RegisterAddOnSetting(parent.object, name, variable, type(default), default);
+        local setting, init = MakeSetting(props, parent, name, variable, type(props.default));
         if not noCreate then
             init = Settings.CreateDropDown(parent.object, setting, MakeOptions(props), props.tooltip);
             MountCommon(init, props, parent);
         end
-        return init or setting, id, nil, MountSettingChanger(props, setting, set, get);
+        return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
     [Types.Binding]
@@ -675,9 +689,9 @@ Lib.Factory = {
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
             local data = init:GetData();
-            local setting = Settings.RegisterAddOnSetting(parent.object, data.name, data.variable, Settings.VarType.String, props.default);
+            local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
             init:SetSetting(setting);
-            local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
+            local set, get = MountControls(props, setting, GetCallbacks(props, parent));
 
             CustomBindingManager:AddSystem(setting,
                 function() return CreateKeyChordTableFromString(get()) end,
@@ -816,9 +830,9 @@ Lib.Factory = {
         return function(props, parent, index)
             local init, id = Lib.Factory[Types.Element](props, parent, index);
             local data = init:GetData();
-            local setting = Settings.RegisterAddOnSetting(parent.object, data.name, data.variable, Settings.VarType.String, props.default);
+            local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
             init:SetSetting(setting);
-            local set, get = MountSettingChanger(props, setting, GetCallbacks(props, parent));
+            local set, get = MountControls(props, setting, GetCallbacks(props, parent));
 
             data.color = CreateColorFromHexString(get());
             data.OnSettingValueChanged = GenerateClosure(OnColorSettingChanged, data, set);
@@ -840,7 +854,7 @@ Lib.Factory = {
                         background:SetAllPoints(button);
                         background:Show();
                     end, self);
-                    data.checkers = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(checkers)
+                    data.checkers = Lib:AcquireFromPool('Texture', 'ARTWORK', function(checkers)
                         checkers:SetTexture(188523); -- Tileset\\Generic\\Checkers
                         checkers:SetTexCoord(.25, 0, 0.5, .25);
                         checkers:SetDesaturated(true);
@@ -1063,6 +1077,7 @@ return setmetatable(Lib, {
     ---@field  get          function             Function to get current value
     ---@field  key          any                  Optional key for value in storage table
     ---@field  table        table|string         Table/global ref. to store value
+    ---@field  cvar         string               CVar to store and access value
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Types.Binding : LibSettings.Variable
     ---@field  binding      string               Binding to modify
