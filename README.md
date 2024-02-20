@@ -6,7 +6,7 @@ LibSettings is an API wrapper designed to simplify the process of creating setti
 
 ### Create(props, owner, layout)
 
-This function creates a new settings object with the given properties, owner, and layout. It registers the created object in the add-on category and stores it in the registry.
+Creates a new settings object with the given properties, owner, and layout. It registers the created object in the add-on category and stores it in the registry.
 
 **Parameters:**
 
@@ -20,7 +20,7 @@ This function creates a new settings object with the given properties, owner, an
 
 ### Add(props, owner, layout)
 
-This function creates a new settings object with the given properties, owner, and layout.
+Creates a new settings object with the given properties, owner, and layout.
 
 **Parameters:**
 
@@ -34,7 +34,7 @@ This function creates a new settings object with the given properties, owner, an
 
 ### LoadAddOnCategory(name, generator, callback)
 
-This function loads a category from an add-on. It waits until the add-on is loaded before creating the category, allowing saved variables to be loaded first.
+Loads a category from an add-on. It waits until the add-on is loaded before creating the category, allowing saved variables to be loaded first.
 
 **Parameters:**
 
@@ -44,7 +44,7 @@ This function loads a category from an add-on. It waits until the add-on is load
 
 ### AppendAddOnCategory(name, generator, callback)
 
-This function appends more settings to an add-on category. It waits until the add-on is loaded before creating the category, allowing saved variables to be loaded first.
+Appends more settings to an add-on category. It waits until the add-on is loaded before creating the category, allowing saved variables to be loaded first.
 
 **Parameters:**
 
@@ -54,7 +54,7 @@ This function appends more settings to an add-on category. It waits until the ad
 
 ### Get(id)
 
-This function retrieves a widget tree from the registry by its unique identifier.
+Retrieves a widget tree from the registry by its unique identifier.
 
 **Parameters:**
 
@@ -64,6 +64,30 @@ This function retrieves a widget tree from the registry by its unique identifier
 
 - The widget tree from the registry.
 
+### Open(category)
+
+Open a category in the settings panel, by the result object from creating the category.
+
+**Parameters:**
+
+- `category`: The category object to display in the settings panel.
+
+**Returns:**
+
+- Successfully opened the category.
+
+### OpenByID(id)
+
+Open a category in the settings panel, by the ID from creating the category.
+
+**Parameters:**
+
+- `id`: The category ID where the category is stored in the registry.
+
+**Returns:**
+
+- Successfully opened the category.
+
 ## Properties
 
 ### Registry
@@ -72,8 +96,4 @@ This property is a table that stores all the created settings objects.
 
 ### Types
 
-This property is an enumeration of available widget and category types.
-
-### Factory
-
-This property holds factory functions for each of the available widget and category types.
+This property is an enumeration of available widget and category types, mapped to factories.
