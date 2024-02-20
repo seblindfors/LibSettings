@@ -301,7 +301,7 @@ function Lib:ReleaseToPool(wType, wTemplate, widget)
 end
 
 ---------------------------------------------------------------
--- Factory
+-- Types
 ---------------------------------------------------------------
 -- Map of element types to factory functions.
 -- Each factory function takes a props table tailored to the type of element,
