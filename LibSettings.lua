@@ -1,5 +1,5 @@
 ---@class LibSettings
-local Lib = LibStub:NewLibrary('LibSettings', 0.3)
+local Lib = LibStub:NewLibrary('LibSettings', 0.4)
 if not Lib then return end;
 ---------------------------------------------------------------
 -- Helpers
