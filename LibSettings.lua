@@ -1,56 +1,15 @@
 ---@class LibSettings
 local Lib = LibStub:NewLibrary('LibSettings', 0.3)
-if not Lib then return end; local _ = CreateCounter();
----------------------------------------------------------------------------------------
-Lib.Types                       =  {--[[@enum (key) Types                            ]]
----------------------------------------------------------------------------------------
-    -- Widgets
-    Binding                     =_()--[[@as LibSettings.Types.Binding               ]];
-    Button                      =_()--[[@as LibSettings.Types.Button                ]];
-    CheckBox                    =_()--[[@as LibSettings.Types.CheckBox              ]];
-    CheckBoxDropDown            =_()--[[@as LibSettings.Types.CheckBoxDropDown      ]];
-    CheckBoxSlider              =_()--[[@as LibSettings.Types.CheckBoxSlider        ]];
-    Color                       =_()--[[@as LibSettings.Types.Color                 ]];
-    DropDown                    =_()--[[@as LibSettings.Types.DropDown              ]];
-    Element                     =_()--[[@as LibSettings.Types.Element               ]];
-    Header                      =_()--[[@as LibSettings.Types.Header                ]];
-    Key                         =_()--[[@as LibSettings.Types.Key                   ]];
-    Slider                      =_()--[[@as LibSettings.Types.Slider                ]];
-    Spacer                      =_()--[[@as LibSettings.Types.Spacer                ]];
-    -- Containers
-    CanvasLayoutCategory        =_()--[[@as LibSettings.Category.Canvas             ]];
-    CanvasLayoutSubcategory     =_()--[[@as LibSettings.Category.Canvas             ]];
-    VerticalLayoutCategory      =_()--[[@as LibSettings.Category.Vertical           ]];
-    VerticalLayoutSubcategory   =_()--[[@as LibSettings.Category.Vertical           ]];
-    ExpandableSection           =_()--[[@as LibSettings.Types.ExpandableSection     ]];
----------------------------------------------------------------------------------------
-};
-
---[[ TODO?
-    'Category',                   -- (category, group)
-    'AddOnCategory',              -- (category)
-    'Initializer',                -- (category, initializer)
-    'ProxySetting',               -- (categoryTbl, variable, variableTbl, variableType, name, defaultValue, getValue, setValue, commitValue)
-    'ModifiedClickSetting'       -- (categoryTbl, variable, name, defaultValue)
-]]
-
-function Lib:AddCustomType(name, factory, silent)
-    local typeExists = not not self.Types[name];
-    if typeExists and not silent then
-        error(('Type already exists: %q'):format(tostring(name)), 2);
-    end
-    self.Types[name] = _();
-    self.Factory[self.Types[name]] = factory;
-end
-
-local Types = Lib.Types;
-
+if not Lib then return end;
 ---------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------
 local Settings, CHILDREN, DELIMITER = Settings, 1, '.';
 local DEF_ELEM_WIDTH, DEF_ELEM_HEIGHT = 280, 26;
 
+---------------------------------------------------------------
+-- Dropdown options
+---------------------------------------------------------------
 local function CreateOptionsTable(options) ---@type LibSettings.OptList
     local container = Settings.CreateControlTextContainer();
     for _, option in ipairs(options) do
@@ -59,12 +18,28 @@ local function CreateOptionsTable(options) ---@type LibSettings.OptList
     return container:GetData();
 end
 
+---@param  props     LibSettings.Types.DropDown Properties of the dropdown
+---@return LibSettings.GetOpts   options Options table generator
+local function MakeOptions(props)
+    if type(props.options) == 'function' then
+        return GenerateClosure(props.options, props) --[[@as LibSettings.OptGen]];
+    else
+        return GenerateClosure(CreateOptionsTable, props.options) --[[@as LibSettings.OptList]];
+    end
+end
+
+---------------------------------------------------------------
+-- Slider options
+---------------------------------------------------------------
 local function CreateSliderOptions(props)
     local options = Settings.CreateSliderOptions(props.min, props.max, props.step);
     options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, props.format);
     return options;
 end
 
+---------------------------------------------------------------
+-- Identity
+---------------------------------------------------------------
 ---@return string|integer|nil
 local function GenerateTableID(props, index)
     return props.id
@@ -92,6 +67,9 @@ local function GetIdentity(props, parent, index)
         GenerateUniqueVariableID(props, parent, index);
 end
 
+---------------------------------------------------------------
+-- Callbacks
+---------------------------------------------------------------
 local MakeSetter, MakeGetter;
 do -- Closure generators for setting and getting values.
     local function __key(props, setting)
@@ -139,18 +117,6 @@ do -- Closure generators for setting and getting values.
     end
 end
 
----@param  props     LibSettings.Setting       Properties of the setting
----@param  parent    LibSettings.Result.Layout Parent tree node of the setting
----@param  name      string                    Name of the setting
----@param  variable  string                    Variable name of the setting
----@param  varType   string                    Type of the setting variable
-local function MakeSetting(props, parent, name, variable, varType)
-    if props.cvar then
-        return Settings.RegisterCVarSetting(parent.object, props.cvar, varType, name);
-    end
-    return Settings.RegisterAddOnSetting(parent.object, name, variable, varType, props.default);
-end
-
 ---@param  props     LibSettings.Setting Properties of the setting
 ---@param  setting   Blizzard.Setting    Setting object
 ---@param  set       LibSettings.Set     Callback function for setting a value
@@ -180,22 +146,41 @@ local function MountControls(props, setting, set, get)
     return set, get;
 end
 
----@param  props     LibSettings.Types.DropDown Properties of the dropdown
----@return LibSettings.GetOpts   options Options table generator
-local function MakeOptions(props)
-    if type(props.options) == 'function' then
-        return GenerateClosure(props.options, props) --[[@as LibSettings.OptGen]];
-    else
-        return GenerateClosure(CreateOptionsTable, props.options) --[[@as LibSettings.OptList]];
-    end
-end
-
 local function GetCallbacks(props, parent)
     return
         MakeSetter(props, parent) --[[@as LibSettings.Set]],
         MakeGetter(props, parent) --[[@as LibSettings.Get]];
 end
 
+---------------------------------------------------------------
+-- Initializers and setting generators
+---------------------------------------------------------------
+---@param  props     LibSettings.Setting       Properties of the setting
+---@param  parent    LibSettings.Result.Layout Parent tree node of the setting
+---@param  name      string                    Name of the setting
+---@param  variable  string                    Variable name of the setting
+---@param  varType   string                    Type of the setting variable
+local function MakeSetting(props, parent, name, variable, varType)
+    if props.cvar then
+        return Settings.RegisterCVarSetting(parent.object, props.cvar, varType, name);
+    end
+    return Settings.RegisterAddOnSetting(parent.object, name, variable, varType, props.default);
+end
+
+---@param  props     LibSettings.ListItem      Base properties of the element
+---@param  parent    LibSettings.Result.Layout Parent tree node of the element
+---@param  index     integer                   Index of the element in the parent
+local function MakeElement(props, parent, index)
+    return Lib.Types.Element(
+        props  --[[@as LibSettings.Types.Element]],
+        parent --[[@as LibSettings.Result.Layout]],
+        index
+    ) --[[@as Blizzard.Initializer]];
+end
+
+---------------------------------------------------------------
+-- Predicates and events
+---------------------------------------------------------------
 local PackPredicates, AddShownPredicates, AddModifyPredicates, AddStateFrameEvents, SetParentInitializer, AddAnchorPoints;
 do -- Closure generators for packing and unpacking predicates and events.
     local function __unpack(requiredType, predicate)
@@ -267,7 +252,9 @@ do -- Closure generators for packing and unpacking predicates and events.
     end
 end
 
--- Common mounting function for all initializers.
+---------------------------------------------------------------
+-- Common mounting function for all initializers
+---------------------------------------------------------------
 local function MountCommon(init, props, parent)
     AddShownPredicates(init, props.show);
     AddStateFrameEvents(init, props.event);
@@ -320,19 +307,12 @@ end
 -- Each factory function takes a props table tailored to the type of element,
 -- and returns a result table containing the created widget, its unique identifier,
 -- and its layout object, as well as any additional callbacks for setting and getting values.
----@type table<LibSettings.ListItem, LibSettings.Factory>
-Lib.Factory = {
-    -- TODO?
-    --[[Types.AddOnCategory] = function(props)
-        local name, id = GetIdentity(props);
-        local category, layout = Settings.GetCategory(name);
-        return category, layout, id;
-    end;]]
+---@enum (key) LibSettings.Types
+Lib.Types = {
 
-    -- Layouts
-    [Types.VerticalLayoutCategory]
-    ---@param  props  LibSettings.Category.Vertical
-    ---@return LibSettings.Result.Layout
+    ---@type fun(props: LibSettings.Category.Vertical): LibSettings.Result.Layout, ...
+    --- Creates a vertical layout category, with a list of elements to render vertically inside the settings panel.
+    VerticalLayoutCategory
     = function(props)
         local name, id = GetIdentity(props);
         local set, get = GetCallbacks(props);
@@ -340,9 +320,9 @@ Lib.Factory = {
         return init, id, layout, set, get;
     end;
 
-    [Types.CanvasLayoutCategory]
-    ---@param  props  LibSettings.Category.Canvas
-    ---@return LibSettings.Result.Layout
+    ---@type fun(props: LibSettings.Category.Canvas): LibSettings.Result.Layout, ...
+    --- Creates a canvas layout category, with a frame to anchor inside the settings panel.
+    CanvasLayoutCategory
     = function(props)
         local name, id = GetIdentity(props);
         local set, get = GetCallbacks(props);
@@ -351,9 +331,9 @@ Lib.Factory = {
         return init, id, layout, set, get;
     end;
 
-    [Types.VerticalLayoutSubcategory]
-    ---@param  props  LibSettings.Category.Vertical
-    ---@return LibSettings.Result.Layout
+    ---@type fun(props: LibSettings.Category.Vertical, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Layout, ...
+    --- Creates a subcategory in a vertical layout.
+    VerticalLayoutSubcategory
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
@@ -361,9 +341,9 @@ Lib.Factory = {
         return init, id, layout, set, get;
     end;
 
-    [Types.CanvasLayoutSubcategory]
-    ---@param  props  LibSettings.Category.Canvas
-    ---@return LibSettings.Result.Layout
+    ---@type fun(props: LibSettings.Category.Canvas, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Layout, ...
+    --- Creates a canvas layout subcategory, with a frame to anchor inside the settings panel.
+    CanvasLayoutSubcategory
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
@@ -372,10 +352,9 @@ Lib.Factory = {
         return init, id, layout, set, get;
     end;
 
-    -- Widgets
-    [Types.Element]
-    ---@param  props  LibSettings.Types.Element
-    ---@return LibSettings.Result.Init
+    ---@type fun(props: LibSettings.Types.Element, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a basic element, with a name and a tooltip. This is the base for all other list elements.
+    Element
     = function(props, parent, index)
         local name, id, variable = GetIdentity(props, parent, index);
         local data = { name = name, variable = variable, tooltip = props.tooltip };
@@ -399,52 +378,52 @@ Lib.Factory = {
         return init, id;
     end;
 
-    [Types.CheckBox]
-    ---@param  props  LibSettings.Types.CheckBox
-    ---@return LibSettings.Result.Setting
-    = function(props, parent, index, noCreate)
+    ---@type fun(props: LibSettings.Types.CheckBox, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
+    --- Creates a checkbox element for a boolean setting.
+    CheckBox
+    = function(props, parent, index, noInit)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
 
         local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Boolean);
-        if not noCreate then
+        if not noInit then
             init = Settings.CreateCheckBox(parent.object, setting, props.tooltip);
             MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
-    [Types.Slider]
-    ---@param  props  LibSettings.Types.Slider
-    ---@return LibSettings.Result.Setting
-    = function(props, parent, index, noCreate)
+    ---@type fun(props: LibSettings.Types.Slider, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
+    --- Creates a numerical slider element, with a range and step size.
+    Slider
+    = function(props, parent, index, noInit)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
         local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Number);
-        if not noCreate then
+        if not noInit then
             init = Settings.CreateSlider(parent.object, setting, CreateSliderOptions(props), props.tooltip);
             MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
-    [Types.DropDown]
-    ---@param  props  LibSettings.Types.DropDown
-    ---@return LibSettings.Result.Setting
-    = function(props, parent, index, noCreate)
+    ---@type fun(props: LibSettings.Types.DropDown, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
+    --- Creates a dropdown element, with a list of options to choose from.
+    DropDown
+    = function(props, parent, index, noInit)
         local name, id, variable = GetIdentity(props, parent, index);
         local set, get = GetCallbacks(props, parent);
         local setting, init = MakeSetting(props, parent, name, variable, type(props.default));
-        if not noCreate then
+        if not noInit then
             init = Settings.CreateDropDown(parent.object, setting, MakeOptions(props), props.tooltip);
             MountCommon(init, props, parent);
         end
         return init or setting, id, nil, MountControls(props, setting, set, get);
     end;
 
-    [Types.Binding]
-    ---@param  props  LibSettings.Types.Binding
-    ---@return LibSettings.Result.Init
+    ---@type fun(props: LibSettings.Types.Binding, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a key binding element, with support for meta keys, key chords and single key input. For bindings defined in XML.
+    Binding
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local binding = props.binding;
@@ -459,9 +438,9 @@ Lib.Factory = {
         return init, id;
     end;
 
-    [Types.Button]
-    ---@param  props  LibSettings.Types.Button
-    ---@return LibSettings.Result.Init
+    ---@type fun(props: LibSettings.Types.Button, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a button element, with a callback function for when it is clicked.
+    Button
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local click   = props.click;
@@ -474,9 +453,9 @@ Lib.Factory = {
         return init, id;
     end;
 
-    [Types.Header]
-    ---@param  props  LibSettings.Types.Header
-    ---@return LibSettings.Result.Init
+    ---@type fun(props: LibSettings.Types.Header, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a header element, which is a simple text to separate elements.
+    Header
     = function(props, parent, index)
         local name, id = GetIdentity(props, parent, index);
         local init = CreateSettingsListSectionHeaderInitializer(name);
@@ -485,9 +464,9 @@ Lib.Factory = {
         return init, id;
     end;
 
-    [Types.Spacer]
-    ---@param  props  LibSettings.Types.Spacer
-    ---@return LibSettings.Result.Init
+    ---@type fun(props: LibSettings.Types.Spacer, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a spacer element, which is a simple line to separate elements.
+    Spacer
     = function(props, parent, index)
         local _, id = GetIdentity(props, parent, index);
         local init = Settings.CreateElementInitializer('SettingsCategoryListSpacerTemplate', {});
@@ -496,16 +475,16 @@ Lib.Factory = {
         return init, id;
     end;
 
-    [Types.CheckBoxSlider]
-    ---@param  props  LibSettings.Types.CheckBoxSlider
-    ---@return LibSettings.Result.Combined
+    ---@type fun(props: LibSettings.Types.CheckBoxSlider, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Combined, ...
+    --- Creates a combined element with a checkbox and a slider, where the slider is activated by the checkbox.
+    CheckBoxSlider
     = function(props, parent, index)
-        local cbSetting, id, _, cbSet, cbGet = Lib.Factory[Lib.Types.CheckBox](
+        local cbSetting, id, _, cbSet, cbGet = Lib.Types.CheckBox(
             props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
         local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
 
         props = tremove(props, CHILDREN);
-        local slSetting, _, _, slSet, slGet = Lib.Factory[Lib.Types.Slider](
+        local slSetting, _, _, slSet, slGet = Lib.Types.Slider(
             props --[[@as LibSettings.Types.Slider]], parent, index, true);
         local slLabel, slTooltip = props.name, props.tooltip;
 
@@ -522,16 +501,16 @@ Lib.Factory = {
         return init, id, nil, cbSet, cbGet, slSet, slGet;
     end;
 
-    [Types.CheckBoxDropDown]
-    ---@param  props  LibSettings.Types.CheckBoxDropDown
-    ---@return LibSettings.Result.Combined
+    ---@type fun(props: LibSettings.Types.CheckBoxDropDown, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Combined, ...
+    --- Creates a combined element with a checkbox and a dropdown, where the dropdown is activated by the checkbox.
+    CheckBoxDropDown
     = function(props, parent, index)
-        local cbSetting, id, _, cbSet, cbGet = Lib.Factory[Lib.Types.CheckBox](
+        local cbSetting, id, _, cbSet, cbGet = Lib.Types.CheckBox(
             props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
         local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
 
         props = tremove(props, CHILDREN);
-        local ddSetting, _, _, ddSet, ddGet = Lib.Factory[Lib.Types.DropDown](
+        local ddSetting, _, _, ddSet, ddGet = Lib.Types.DropDown(
             props --[[@as LibSettings.Types.DropDown]], parent, index, true);
         local ddLabel, ddTooltip = props.name, props.tooltip;
         local init = CreateSettingsCheckBoxDropDownInitializer(
@@ -547,8 +526,9 @@ Lib.Factory = {
         return init, id, nil, cbSet, cbGet, ddSet, ddGet;
     end;
 
-    -- Custom types
-    [Types.ExpandableSection]
+    ---@type fun(props: LibSettings.Types.ExpandableSection, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates an expandable section element, with support for hiding and showing children based on its state.
+    ExpandableSection
     = (function()
         local ExpandableSectionMixin = {};
 
@@ -565,8 +545,6 @@ Lib.Factory = {
         function ExpandableSectionMixin:CalculateHeight() return DEF_ELEM_HEIGHT end;
         ExpandableSectionMixin.GetExtent = ExpandableSectionMixin.CalculateHeight;
 
-        ---@param  props  LibSettings.Types.ExpandableSection
-        ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
             local name, _, variable = GetIdentity(props, parent, index);
             local init = CreateSettingsExpandableSectionInitializer(name);
@@ -592,9 +570,11 @@ Lib.Factory = {
             end;
             return parent.object, variable, parent.layout;
         end
-    end)() --[[@as LibSettings.Factory]];
+    end)();
 
-    [Types.Key]
+    ---@type fun(props: LibSettings.Types.Key, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a custom key binding element, with support for meta keys, key chords and single key input.
+    Key
     = (function()
         local CustomBindingManager, CustomBindingButtonMixin = CreateFromMixins(CustomBindingManager), CreateFromMixins(CustomBindingButtonMixin);
         CustomBindingManager.handlers     = {};
@@ -689,10 +669,8 @@ Lib.Factory = {
             end
         end
 
-        ---@param  props  LibSettings.Types.Key
-        ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
-            local init, id = Lib.Factory[Types.Element](props, parent, index);
+            local init, id = MakeElement(props, parent, index);
             local data = init:GetData();
             local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
             init:SetSetting(setting);
@@ -753,9 +731,11 @@ Lib.Factory = {
 
             return init, id, nil, set, get;
         end
-    end)() --[[@as LibSettings.Factory]];
+    end)();
 
-    [Types.Color]
+    ---@type fun(props: LibSettings.Types.Color, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
+    --- Creates a color picker element.
+    Color
     = (function()
         local function GetRGBAHexStringFromColor(color)
             local r, g, b, a = color:GetRGBAAsBytes();
@@ -830,10 +810,8 @@ Lib.Factory = {
             set(value);
         end
 
-        ---@param  props  LibSettings.Types.Color
-        ---@return LibSettings.Result.Init ...
         return function(props, parent, index)
-            local init, id = Lib.Factory[Types.Element](props, parent, index);
+            local init, id = MakeElement(props, parent, index);
             local data = init:GetData();
             local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
             init:SetSetting(setting);
@@ -897,52 +875,66 @@ Lib.Factory = {
 
             return init, id, nil, set, get;
         end
-    end)() --[[@as LibSettings.Factory]];
-}; local Factory = Lib.Factory;
+    end)();
 
-local function ResolveType(props, parent)
+};
+
+local ResolveType = GenerateClosure(function(Types, props, parent)
     if not parent then
         if props.frame then
-            return Factory[Types.CanvasLayoutCategory];
+            return Types.CanvasLayoutCategory;
         else
-            return Factory[Types.VerticalLayoutCategory];
+            return Types.VerticalLayoutCategory;
         end
     elseif props.options then
-        return Factory[Types.DropDown];
+        return Types.DropDown;
     elseif props.step then
-        return Factory[Types.Slider];
+        return Types.Slider;
     elseif type(props.default) == 'boolean' then
         if props[CHILDREN] then
             if props[CHILDREN].options then
-                return Factory[Types.CheckBoxDropDown];
+                return Types.CheckBoxDropDown;
             elseif props[CHILDREN].step then
-                return Factory[Types.CheckBoxSlider];
+                return Types.CheckBoxSlider;
             end
-            return Factory[Types.CheckBoxSlider];
+            return Types.CheckBoxSlider;
         end
-        return Factory[Types.CheckBox];
+        return Types.CheckBox;
     elseif props.binding then
-        return Factory[Types.Binding];
+        return Types.Binding;
     elseif not props[CHILDREN] then
-        return Factory[Types.Header];
+        return Types.Header;
     elseif props.frame then
-        return Factory[Types.CanvasLayoutSubcategory];
+        return Types.CanvasLayoutSubcategory;
     else
-        return Factory[Types.VerticalLayoutSubcategory];
+        return Types.VerticalLayoutSubcategory;
     end
+end, Lib.Types);
+
+---------------------------------------------------------------
+-- AddCustomType
+---------------------------------------------------------------
+-- Add a custom type to the factory. This allows for custom
+-- widgets to be created from a props table. The factory
+-- function takes a props table tailored to the type of element,
+-- and returns a result table containing the created widget,
+-- its unique identifier, and its layout object, as well as any
+-- additional callbacks for setting and getting values.
+---------------------------------------------------------------
+function Lib:AddCustomType(name, factory, force)
+    local typeExists = not not self.Types[name];
+    if typeExists and not force then
+        error(('Type already exists: %q'):format(tostring(name)), 2);
+    end
+    self.Types[name] = factory;
 end
 
 ---------------------------------------------------------------
--- Create
+-- Factory
 ---------------------------------------------------------------
--- Create a set of widgets from a props table. The props table
--- is a tree of widget properties, with each node representing
--- a widget or a layout. The root node is the parent of the
--- entire tree, which is the owner of the created widgets.
----------------------------------------------------------------
-local function Create(props, parent, index)
-    local type, result = props.type, {parent = parent, index = index};
-    local factory = type and Factory[type] or ResolveType(props, parent);
+local function Factory(props, parent, index)
+    local result = { parent = parent, index = index };
+    local factory = props.type or ResolveType(props, parent);
     if factory then
         result.object,    ---@return table    object    Widget object that was created
         result.id,        ---@return string   id        Unique identifier of the object
@@ -957,7 +949,7 @@ local function Create(props, parent, index)
     if children then
         result.children = {};
         for i, child in ipairs(children) do
-            local childResult = Create(child, result, i);
+            local childResult = Factory(child, result, i);
             local childName   = childResult.id;
             if childName then
                 result.children[childName] = childResult;
@@ -970,8 +962,16 @@ local function Create(props, parent, index)
     return result;
 end
 
+---------------------------------------------------------------
+-- Create
+---------------------------------------------------------------
+-- Create a set of widgets from a props table. The props table
+-- is a tree of widget properties, with each node representing
+-- a widget or a layout. The root node is the parent of the
+-- entire tree, which is the owner of the created widgets.
+---------------------------------------------------------------
 function Lib:Create(props, owner, layout)
-    local result = Create(props, owner, layout);
+    local result = Factory(props, owner, layout);
     if not owner then
         Settings.RegisterAddOnCategory(result.object);
         self.Registry[result.id] = result;
@@ -979,8 +979,15 @@ function Lib:Create(props, owner, layout)
     return result;
 end
 
+---------------------------------------------------------------
+-- Add
+---------------------------------------------------------------
+-- Add more widgets to an existing set of widgets. This is
+-- similar to Create, but the widgets are appended to an
+-- existing set of widgets, rather than creating a new set.
+---------------------------------------------------------------
 function Lib:Add(props, owner, layout)
-    return Create(props, owner, layout);
+    return Factory(props, owner, layout);
 end
 
 ---------------------------------------------------------------
@@ -990,9 +997,9 @@ end
 -- done. The category is not created until the addon is loaded,
 -- allowing saved variables to be loaded first.
 ---------------------------------------------------------------
----@param name      string    Name of the addon to load settings for
----@param generator function  Function to generate a props tree
----@param callback  function? Function to call when the category is created
+---@param  name      string    Name of the addon to load settings for
+---@param  generator function  Function to generate a props tree
+---@param  callback  function? Function to call when the category is created
 function Lib:LoadAddOnCategory(name, generator, callback)
     EventUtil.ContinueOnAddOnLoaded(name, function()
         local result = self:Create(generator());
@@ -1010,9 +1017,9 @@ end
 -- the addon in question is loaded, allowing saved variables
 -- to be loaded first.
 ---------------------------------------------------------------
----@param name      string    Name of the addon to observe
----@param generator function  Function to generate an appendage props tree
----@param callback  function? Function to call when the appendage is created
+---@param  name      string    Name of the addon to observe
+---@param  generator function  Function to generate an appendage props tree
+---@param  callback  function? Function to call when the appendage is created
 function Lib:AppendAddOnCategory(name, generator, callback)
     EventUtil.ContinueOnAddOnLoaded(name, function()
         local result = self:Add(generator());
@@ -1023,11 +1030,42 @@ function Lib:AppendAddOnCategory(name, generator, callback)
 end
 
 ---------------------------------------------------------------
+-- Open
+---------------------------------------------------------------
+-- Open a category by its object reference. This will show
+-- the category in the settings panel.
+---------------------------------------------------------------
+---@param  category  LibSettings.Result.Layout Category object
+---@return boolean   success Whether the category was opened
+function Lib:Open(category)
+    assert(type(category) == 'table', 'Usage: LibSettings:Open(category)');
+    assert(category.object and category.object.ID, 'Invalid category object');
+    return Settings.OpenToCategory(category.object.ID);
+end
+
+---------------------------------------------------------------
+-- OpenByID
+---------------------------------------------------------------
+-- Open a category by its unique identifier. This will show
+-- the category in the settings panel.
+---------------------------------------------------------------
+---@param  id        string    Unique identifier of the category
+---@return boolean   success   Whether the category was opened
+function Lib:OpenByID(id)
+    assert(type(id) == 'string', 'Usage: LibSettings:OpenByID(id)');
+    local category = self.Registry[id];
+    assert(category, 'Category not found: '..tostring(id));
+    return Settings.OpenToCategory(category.object.ID);
+end
+
+---------------------------------------------------------------
 -- Get
 ---------------------------------------------------------------
 -- Get a widget tree from the registry by its unique identifier.
 -- This is typically the name of the category, if not specified.
 ---------------------------------------------------------------
+---@param  id        string    Unique identifier of the category
+---@return LibSettings.Result.Layout category Category object
 function Lib:Get(id)
     return self.Registry[id];
 end
@@ -1045,6 +1083,7 @@ return setmetatable(Lib, {
 ---@class LibSettings.ListItem
     ---@field  name         string               Display name of the elment
     ---@field  id           string               Generative identifier of the element
+    ---@field  type         function?            Factory function for the element
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.AnchorList
     ---@field  [1]          FramePoint           Anchor point
@@ -1177,6 +1216,7 @@ return setmetatable(Lib, {
 ---@alias LibSettings.Value    string|number|boolean
 ---@alias LibSettings.Pred     function|table<integer, function>
 ---@alias LibSettings.Event    string|table<integer, string>
+---@alias LibSettings.Proto    LibSettings.Result.Setting|Blizzard.Setting
 ---@alias LibSettings.SetValue fun(value: any)
 ---@alias LibSettings.GetValue fun() : any
 ---@alias LibSettings.Getter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting) : any
@@ -1186,5 +1226,4 @@ return setmetatable(Lib, {
 ---@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : Blizzard.Option[]
 ---@alias LibSettings.OptList  fun(options: LibSettings.Options) : Blizzard.Option[]
 ---@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
----@alias LibSettings.Factory  fun(props: LibSettings.ListItem, parent: LibSettings.Result.Layout?, index: number, noCreate: boolean?): ...
 ---------------------------------------------------------------------------
