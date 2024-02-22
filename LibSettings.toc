@@ -10,7 +10,7 @@
 
 Libs\LibStub\LibStub.lua
 
-LibSettings.lua
+LibSettings.xml
 
 #@debug@
 LibSettings.Test.lua
