@@ -277,6 +277,13 @@ do local pools = {};
         return wType..'.'..tostring(wTemplate);
     end
 
+    local function PoolRelease(widget, releaseFunc)
+        pools[widget.__poolID]:Release(widget);
+        if releaseFunc then
+            releaseFunc(widget);
+        end
+    end
+
     function Lib:AcquireFromPool(wType, wTemplate, init, parent, ...)
         local poolID = MakePoolID(wType, wTemplate);
         if not pools[poolID] then
@@ -289,6 +296,7 @@ do local pools = {};
             end
         end
         local widget = pools[poolID]:Acquire();
+        widget.Release, widget.__poolID = PoolRelease, poolID;
         widget:SetParent(parent);
         if init then
             init(widget);
@@ -729,7 +737,7 @@ Lib.Types = {
             init.Resetter = function(initializer, self)
                 elementResetter(initializer, self);
                 CustomBindingManager:SetHandlerRegistered(data.button, false);
-                Lib:ReleaseToPool('Button', 'CustomBindingButtonTemplate', data.button);
+                data.button:Release();
                 data.button = nil;
             end;
 
@@ -833,6 +841,7 @@ Lib.Types = {
                         swatch:SetPoint('TOPLEFT', button, 'TOPLEFT', -6, 6);
                         swatch:SetPoint('BOTTOMRIGHT', button, 'BOTTOMRIGHT', 6, -6);
                         swatch:SetTexture('Interface\\ChatFrame\\ChatFrameColorSwatch');
+                        swatch:SetTexCoord(0, 1, 0, 1);
                         swatch:Show();
                         swatch:SetVertexColor(data.color:GetRGBA());
                     end, self);
@@ -857,22 +866,23 @@ Lib.Types = {
                     end, self);
                     button:Show();
                     button:SetSize(24, 24);
+                    button:SetPoint('LEFT', self, 'CENTER', -78, 0);
                     button:SetHitRectInsets(0, -100, 0, 0);
                     button:SetScript('OnClick', GenerateClosure(OnColorButtonClick, data, set));
                 end, self);
-                data.button:SetPoint('LEFT', self, 'CENTER', -78, 0);
             end;
 
             local elementResetter = init.Resetter;
             init.Resetter = function(initializer, self)
                 elementResetter(initializer, self);
-                Lib:ReleaseToPool('Button', nil, data.button);
-                Lib:ReleaseToPool('Texture', 'OVERLAY', data.swatch);
-                Lib:ReleaseToPool('Texture', 'BACKGROUND', data.background);
-                Lib:ReleaseToPool('Texture', 'BACKGROUND', data.checkers);
-                Lib:ReleaseToPool('FontString', 'ARTWORK', data.text);
-                data.button:SetScript('OnClick', nil);
-                data.button:SetHitRectInsets(0, 0, 0, 0);
+                data.button:Release(function(button)
+                    button:SetScript('OnClick', nil);
+                    button:SetHitRectInsets(0, 0, 0, 0);
+                end);
+                data.swatch:Release();
+                data.background:Release();
+                data.checkers:Release();
+                data.text:Release();
                 ---@diagnostic disable-next-line: unbalanced-assignments
                 data.button, data.swatch, data.background, data.checkers, data.text = nil;
             end;
