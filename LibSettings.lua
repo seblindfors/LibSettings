@@ -272,31 +272,35 @@ end
 ---------------------------------------------------------------
 -- Pools
 ---------------------------------------------------------------
-local Pools = {}; Lib.Pools = Pools;
+do local pools = {};
+    local function MakePoolID(wType, wTemplate)
+        return wType..'.'..tostring(wTemplate);
+    end
 
-function Lib:AcquireFromPool(wType, wTemplate, init, parent, ...)
-    local poolID = wType..'.'..tostring(wTemplate);
-    if not self.Pools[poolID] then
-        if wType:match('Texture') then
-            self.Pools[poolID] = CreateTexturePool(UIParent, wTemplate, ...);
-        elseif wType:match('FontString') then
-            self.Pools[poolID] = CreateFontStringPool(UIParent, wTemplate, ...);
-        else
-            self.Pools[poolID] = CreateFramePool(wType, nil, wTemplate, ...);
+    function Lib:AcquireFromPool(wType, wTemplate, init, parent, ...)
+        local poolID = MakePoolID(wType, wTemplate);
+        if not pools[poolID] then
+            if wType:match('Texture') then
+                pools[poolID] = CreateTexturePool(UIParent, wTemplate, ...);
+            elseif wType:match('FontString') then
+                pools[poolID] = CreateFontStringPool(UIParent, wTemplate, ...);
+            else
+                pools[poolID] = CreateFramePool(wType, nil, wTemplate, ...);
+            end
         end
+        local widget = pools[poolID]:Acquire();
+        widget:SetParent(parent);
+        if init then
+            init(widget);
+        end
+        return widget;
     end
-    local widget = self.Pools[poolID]:Acquire();
-    widget:SetParent(parent);
-    if init then
-        init(widget);
-    end
-    return widget;
-end
 
-function Lib:ReleaseToPool(wType, wTemplate, widget)
-    local poolID = wType..'.'..tostring(wTemplate);
-    if self.Pools[poolID] then
-        self.Pools[poolID]:Release(widget);
+    function Lib:ReleaseToPool(wType, wTemplate, widget)
+        local poolID = MakePoolID(wType, wTemplate);
+        if pools[poolID] then
+            pools[poolID]:Release(widget);
+        end
     end
 end
 
