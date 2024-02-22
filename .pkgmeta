@@ -1,5 +1,7 @@
 package-as: LibSettings
 
+enable-toc-creation: yes
+
 externals:
   Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
   Docs: https://github.com/seblindfors/LibSettings.wiki.git
