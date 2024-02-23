@@ -4,38 +4,11 @@ if not Lib then return end;
 ---------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------
-local Settings, CHILDREN, DELIMITER = Settings, 1, '.';
-local DEF_ELEM_WIDTH, DEF_ELEM_HEIGHT = 280, 26;
-
----------------------------------------------------------------
--- Dropdown options
----------------------------------------------------------------
-local function CreateOptionsTable(options) ---@type LibSettings.OptList
-    local container = Settings.CreateControlTextContainer();
-    for _, option in ipairs(options) do
-        container:Add(unpack(option));
-    end
-    return container:GetData();
-end
-
----@param  props     LibSettings.Types.DropDown Properties of the dropdown
----@return LibSettings.GetOpts   options Options table generator
-local function MakeOptions(props)
-    if type(props.options) == 'function' then
-        return GenerateClosure(props.options, props) --[[@as LibSettings.OptGen]];
-    else
-        return GenerateClosure(CreateOptionsTable, props.options) --[[@as LibSettings.OptList]];
-    end
-end
-
----------------------------------------------------------------
--- Slider options
----------------------------------------------------------------
-local function CreateSliderOptions(props)
-    local options = Settings.CreateSliderOptions(props.min, props.max, props.step);
-    options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, props.format);
-    return options;
-end
+local Settings, CHILDREN, DELIMITER, Env = Settings, 1, '.', {
+    DEF_ELEM_WIDTH = 280,
+    DEF_ELEM_HEIGHT = 26,
+    CHILDREN = 1,
+};
 
 ---------------------------------------------------------------
 -- Identity
@@ -60,7 +33,7 @@ local function GenerateUniqueVariableID(props, parent, index)
     return parentID and parentID .. DELIMITER .. index or index;
 end
 
-local function GetIdentity(props, parent, index)
+function Env.GetIdentity(props, parent, index)
     return
         props.name,
         GenerateTableID(props, index),
@@ -123,7 +96,7 @@ end
 ---@param  get       LibSettings.Get     Callback function for getting a value
 ---@return LibSettings.SetValue  set     Wrapped function for setting a value
 ---@return LibSettings.GetValue  get     Wrapped function for getting a value
-local function MountControls(props, setting, set, get)
+function Env.MountControls(props, setting, set, get)
     if props.cvar then
         set = GenerateClosure(setting.SetValue, setting);
         get = GenerateClosure(setting.GetValue, setting);
@@ -146,7 +119,7 @@ local function MountControls(props, setting, set, get)
     return set, get;
 end
 
-local function GetCallbacks(props, parent)
+function Env.GetCallbacks(props, parent)
     return
         MakeSetter(props, parent) --[[@as LibSettings.Set]],
         MakeGetter(props, parent) --[[@as LibSettings.Get]];
@@ -160,7 +133,7 @@ end
 ---@param  name      string                    Name of the setting
 ---@param  variable  string                    Variable name of the setting
 ---@param  varType   string                    Type of the setting variable
-local function MakeSetting(props, parent, name, variable, varType)
+function Env.MakeSetting(props, parent, name, variable, varType)
     if props.cvar then
         return Settings.RegisterCVarSetting(parent.object, props.cvar, varType, name);
     end
@@ -170,7 +143,7 @@ end
 ---@param  props     LibSettings.ListItem      Base properties of the element
 ---@param  parent    LibSettings.Result.Layout Parent tree node of the element
 ---@param  index     integer                   Index of the element in the parent
-local function MakeElement(props, parent, index)
+function Env.MakeElement(props, parent, index)
     return Lib.Types.Element(
         props  --[[@as LibSettings.Types.Element]],
         parent --[[@as LibSettings.Result.Layout]],
@@ -181,7 +154,6 @@ end
 ---------------------------------------------------------------
 -- Predicates and events
 ---------------------------------------------------------------
-local PackPredicates, AddShownPredicates, AddModifyPredicates, AddStateFrameEvents, SetParentInitializer, AddAnchorPoints;
 do -- Closure generators for packing and unpacking predicates and events.
     local function __unpack(requiredType, predicate)
         if type(predicate) == requiredType then
@@ -208,22 +180,20 @@ do -- Closure generators for packing and unpacking predicates and events.
     end
     local function __addtbl(method, _unpack, init, predicates)
         if predicates then
-            for key, predicate in _unpack(predicates) do
+            for _, predicate in _unpack(predicates) do
                 init[method](init, unpack(predicate));
             end
         end
     end
 
-    local UnpackPredicates, UnpackEvents, UnpackAnchors;
-
-    UnpackEvents         = GenerateClosure(__unpack, 'string')   --[[@as function]];
-    PackPredicates       = GenerateClosure(__pack,   'function') --[[@as function]];
-    UnpackPredicates     = GenerateClosure(__unpack, 'function') --[[@as function]];
-    UnpackAnchors        = GenerateClosure(__unpack, 'table')    --[[@as function]];
-    AddStateFrameEvents  = GenerateClosure(__add,    'AddStateFrameEvent', UnpackEvents)       --[[@as function]];
-    AddShownPredicates   = GenerateClosure(__add,    'AddShownPredicate',  UnpackPredicates)   --[[@as function]];
-    AddModifyPredicates  = GenerateClosure(__add,    'AddModifyPredicate', UnpackPredicates)   --[[@as function]];
-    AddAnchorPoints      = GenerateClosure(__addtbl, 'AddAnchorPoint',     UnpackAnchors)      --[[@as function]];
+    Env.UnpackEvents         = GenerateClosure(__unpack, 'string')   --[[@as function]];
+    Env.PackPredicates       = GenerateClosure(__pack,   'function') --[[@as function]];
+    Env.UnpackPredicates     = GenerateClosure(__unpack, 'function') --[[@as function]];
+    Env.UnpackAnchors        = GenerateClosure(__unpack, 'table')    --[[@as function]];
+    Env.AddStateFrameEvents  = GenerateClosure(__add,    'AddStateFrameEvent', Env.UnpackEvents)       --[[@as function]];
+    Env.AddShownPredicates   = GenerateClosure(__add,    'AddShownPredicate',  Env.UnpackPredicates)   --[[@as function]];
+    Env.AddModifyPredicates  = GenerateClosure(__add,    'AddModifyPredicate', Env.UnpackPredicates)   --[[@as function]];
+    Env.AddAnchorPoints      = GenerateClosure(__addtbl, 'AddAnchorPoint',     Env.UnpackAnchors)      --[[@as function]];
 
     local function ResolveAndSetParentInitializer(init, parent, modifier)
         if not modifier then
@@ -239,7 +209,7 @@ do -- Closure generators for packing and unpacking predicates and events.
         return true;
     end
 
-    function SetParentInitializer(init, parentResult, lookup, modifier)
+    function Env.SetParentInitializer(init, parentResult, lookup, modifier)
         if type(lookup) == 'string' then
             local errorMsg = ('Parent initializer %q not found in %q.'):format(lookup, init:GetName());
             for key in lookup:gmatch('[^%.]+') do
@@ -255,11 +225,11 @@ end
 ---------------------------------------------------------------
 -- Common mounting function for all initializers
 ---------------------------------------------------------------
-local function MountCommon(init, props, parent)
-    AddShownPredicates(init, props.show);
-    AddStateFrameEvents(init, props.event);
-    if not SetParentInitializer(init, parent, props.parent, props.modify) then
-        AddModifyPredicates(init, props.modify);
+function Env.MountCommon(init, props, parent)
+    Env.AddShownPredicates(init, props.show);
+    Env.AddStateFrameEvents(init, props.event);
+    if not Env.SetParentInitializer(init, parent, props.parent, props.modify) then
+        Env.AddModifyPredicates(init, props.modify);
     end
     if props.new then
         local setting = init.GetSetting and init:GetSetting();
@@ -320,609 +290,16 @@ end
 -- and returns a result table containing the created widget, its unique identifier,
 -- and its layout object, as well as any additional callbacks for setting and getting values.
 ---@enum (key) LibSettings.Types
-Lib.Types = {
-
-    ---@type fun(props: LibSettings.Category.Vertical): LibSettings.Result.Layout, ...
-    --- Creates a vertical layout category, with a list of elements to render vertically inside the settings panel.
-    VerticalLayoutCategory
-    = function(props)
-        local name, id = GetIdentity(props);
-        local set, get = GetCallbacks(props);
-        local init, layout = Settings.RegisterVerticalLayoutCategory(name);
-        return init, id, layout, set, get;
-    end;
-
-    ---@type fun(props: LibSettings.Category.Canvas): LibSettings.Result.Layout, ...
-    --- Creates a canvas layout category, with a frame to anchor inside the settings panel.
-    CanvasLayoutCategory
-    = function(props)
-        local name, id = GetIdentity(props);
-        local set, get = GetCallbacks(props);
-        local init, layout = Settings.RegisterCanvasLayoutCategory(props.frame, name);
-        AddAnchorPoints(init, props.anchor);
-        return init, id, layout, set, get;
-    end;
-
-    ---@type fun(props: LibSettings.Category.Vertical, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Layout, ...
-    --- Creates a subcategory in a vertical layout.
-    VerticalLayoutSubcategory
-    = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local set, get = GetCallbacks(props, parent);
-        local init, layout = Settings.RegisterVerticalLayoutSubcategory(parent.object, name);
-        return init, id, layout, set, get;
-    end;
-
-    ---@type fun(props: LibSettings.Category.Canvas, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Layout, ...
-    --- Creates a canvas layout subcategory, with a frame to anchor inside the settings panel.
-    CanvasLayoutSubcategory
-    = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local set, get = GetCallbacks(props, parent);
-        local init, layout = Settings.RegisterCanvasLayoutSubcategory(parent.object, props.frame, name);
-        AddAnchorPoints(init, props.anchor);
-        return init, id, layout, set, get;
-    end;
-
-    ---@type fun(props: LibSettings.Types.Element, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a basic element, with a name and a tooltip. This is the base for all other list elements.
-    Element
-    = function(props, parent, index)
-        local name, id, variable = GetIdentity(props, parent, index);
-        local data = { name = name, variable = variable, tooltip = props.tooltip };
-        local init = Settings.CreateElementInitializer('SettingsListElementTemplate', data);
-        if not not props.search then
-            init:AddSearchTags(name);
-        end
-        parent.layout:AddInitializer(init);
-
-        init.GetExtent = function()
-            return props.extent or props.height or DEF_ELEM_HEIGHT;
-        end;
-
-        init.InitFrame = function(initializer, self)
-            SettingsListElementMixin.OnLoad(self);
-            ScrollBoxFactoryInitializerMixin.InitFrame(initializer, self);
-            self:SetSize(props.width or DEF_ELEM_WIDTH, props.height or DEF_ELEM_HEIGHT);
-        end;
-
-        MountCommon(init, props, parent)
-        return init, id;
-    end;
-
-    ---@type fun(props: LibSettings.Types.CheckBox, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
-    --- Creates a checkbox element for a boolean setting.
-    CheckBox
-    = function(props, parent, index, noInit)
-        local name, id, variable = GetIdentity(props, parent, index);
-        local set, get = GetCallbacks(props, parent);
-
-        local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Boolean);
-        if not noInit then
-            init = Settings.CreateCheckBox(parent.object, setting, props.tooltip);
-            MountCommon(init, props, parent);
-        end
-        return init or setting, id, nil, MountControls(props, setting, set, get);
-    end;
-
-    ---@type fun(props: LibSettings.Types.Slider, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
-    --- Creates a numerical slider element, with a range and step size.
-    Slider
-    = function(props, parent, index, noInit)
-        local name, id, variable = GetIdentity(props, parent, index);
-        local set, get = GetCallbacks(props, parent);
-        local setting, init = MakeSetting(props, parent, name, variable, Settings.VarType.Number);
-        if not noInit then
-            init = Settings.CreateSlider(parent.object, setting, CreateSliderOptions(props), props.tooltip);
-            MountCommon(init, props, parent);
-        end
-        return init or setting, id, nil, MountControls(props, setting, set, get);
-    end;
-
-    ---@type fun(props: LibSettings.Types.DropDown, parent: LibSettings.Result.Layout, index: integer, noInit: boolean): LibSettings.Proto, ...
-    --- Creates a dropdown element, with a list of options to choose from.
-    DropDown
-    = function(props, parent, index, noInit)
-        local name, id, variable = GetIdentity(props, parent, index);
-        local set, get = GetCallbacks(props, parent);
-        local setting, init = MakeSetting(props, parent, name, variable, type(props.default));
-        if not noInit then
-            init = Settings.CreateDropDown(parent.object, setting, MakeOptions(props), props.tooltip);
-            MountCommon(init, props, parent);
-        end
-        return init or setting, id, nil, MountControls(props, setting, set, get);
-    end;
-
-    ---@type fun(props: LibSettings.Types.Binding, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a key binding element, with support for meta keys, key chords and single key input. For bindings defined in XML.
-    Binding
-    = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local binding = props.binding;
-        local search  = not not props.search;
-        local entry   = C_KeyBindings.GetBindingIndex(binding);
-        local init    = CreateKeybindingEntryInitializer(entry, search);
-        if search then
-            init:AddSearchTags(GetBindingName(binding), name);
-        end
-        parent.layout:AddInitializer(init);
-        MountCommon(init, props, parent);
-        return init, id;
-    end;
-
-    ---@type fun(props: LibSettings.Types.Button, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a button element, with a callback function for when it is clicked.
-    Button
-    = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local click   = props.click;
-        local title   = props.title;
-        local tooltip = props.tooltip;
-        local search  = not not props.search;
-        local init    = CreateSettingsButtonInitializer(name, title, click, tooltip, search);
-        parent.layout:AddInitializer(init);
-        MountCommon(init, props, parent);
-        return init, id;
-    end;
-
-    ---@type fun(props: LibSettings.Types.Header, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a header element, which is a simple text to separate elements.
-    Header
-    = function(props, parent, index)
-        local name, id = GetIdentity(props, parent, index);
-        local init = CreateSettingsListSectionHeaderInitializer(name);
-        parent.layout:AddInitializer(init);
-        MountCommon(init, props, parent);
-        return init, id;
-    end;
-
-    ---@type fun(props: LibSettings.Types.Spacer, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a spacer element, which is a simple line to separate elements.
-    Spacer
-    = function(props, parent, index)
-        local _, id = GetIdentity(props, parent, index);
-        local init = Settings.CreateElementInitializer('SettingsCategoryListSpacerTemplate', {});
-        parent.layout:AddInitializer(init);
-        MountCommon(init, props, parent);
-        return init, id;
-    end;
-
-    ---@type fun(props: LibSettings.Types.CheckBoxSlider, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Combined, ...
-    --- Creates a combined element with a checkbox and a slider, where the slider is activated by the checkbox.
-    CheckBoxSlider
-    = function(props, parent, index)
-        local cbSetting, id, _, cbSet, cbGet = Lib.Types.CheckBox(
-            props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
-        local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
-
-        props = tremove(props, CHILDREN);
-        local slSetting, _, _, slSet, slGet = Lib.Types.Slider(
-            props --[[@as LibSettings.Types.Slider]], parent, index, true);
-        local slLabel, slTooltip = props.name, props.tooltip;
-
-        local init = CreateSettingsCheckBoxSliderInitializer(
-            cbSetting, cbLabel, cbTooltip,
-            slSetting, CreateSliderOptions(props), slLabel, slTooltip
-        );
-        parent.layout:AddInitializer(init);
-        MountCommon(init, cbProps);
-        MountCommon(init, props, parent);
-
-        cbSet, cbGet = cbSet or nop, cbGet or nop;
-        slSet, slGet = slSet or nop, slGet or nop;
-        return init, id, nil, cbSet, cbGet, slSet, slGet;
-    end;
-
-    ---@type fun(props: LibSettings.Types.CheckBoxDropDown, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Combined, ...
-    --- Creates a combined element with a checkbox and a dropdown, where the dropdown is activated by the checkbox.
-    CheckBoxDropDown
-    = function(props, parent, index)
-        local cbSetting, id, _, cbSet, cbGet = Lib.Types.CheckBox(
-            props --[[@as LibSettings.Types.CheckBox]], parent, index, true);
-        local cbLabel, cbTooltip, cbProps = props.name, props.tooltip, props;
-
-        props = tremove(props, CHILDREN);
-        local ddSetting, _, _, ddSet, ddGet = Lib.Types.DropDown(
-            props --[[@as LibSettings.Types.DropDown]], parent, index, true);
-        local ddLabel, ddTooltip = props.name, props.tooltip;
-        local init = CreateSettingsCheckBoxDropDownInitializer(
-            cbSetting, cbLabel, cbTooltip,
-            ddSetting, MakeOptions(props), ddLabel, ddTooltip
-        );
-        parent.layout:AddInitializer(init);
-        MountCommon(init, cbProps);
-        MountCommon(init, props, parent);
-
-        cbSet, cbGet = cbSet or nop, cbGet or nop;
-        ddSet, ddGet = ddSet or nop, ddGet or nop;
-        return init, id, nil, cbSet, cbGet, ddSet, ddGet;
-    end;
-
-    ---@type fun(props: LibSettings.Types.ExpandableSection, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates an expandable section element, with support for hiding and showing children based on its state.
-    ExpandableSection
-    = (function()
-        local ExpandableSectionMixin = {};
-
-        function ExpandableSectionMixin:OnExpandedChanged(expanded)
-            if expanded then
-                self.Button.Right:SetAtlas('Options_ListExpand_Right_Expanded', TextureKitConstants.UseAtlasSize);
-            else
-                self.Button.Right:SetAtlas('Options_ListExpand_Right', TextureKitConstants.UseAtlasSize);
-            end
-            SettingsInbound.RepairDisplay();
-        end
-
-        -- TODO: what if child is a canvas?
-        function ExpandableSectionMixin:CalculateHeight() return DEF_ELEM_HEIGHT end;
-        ExpandableSectionMixin.GetExtent = ExpandableSectionMixin.CalculateHeight;
-
-        return function(props, parent, index)
-            local name, _, variable = GetIdentity(props, parent, index);
-            local init = CreateSettingsExpandableSectionInitializer(name);
-            local data = init.data;
-
-            parent.layout:AddInitializer(init);
-
-            data.expanded = props.expanded;
-            Mixin(init, ExpandableSectionMixin);
-
-            local function IsExpanded() return data.expanded end;
-            for i, child in ipairs(props[CHILDREN] or {}) do
-                PackPredicates(child, 'show', IsExpanded);
-            end
-
-            local elementInitializer = init.InitFrame;
-            init.InitFrame = function(this, self)
-                elementInitializer(this, self);
-                if not data.initialized then
-                    data.initialized = true;
-                    Mixin(self, ExpandableSectionMixin);
-                end
-            end;
-            return parent.object, variable, parent.layout;
-        end
-    end)();
-
-    ---@type fun(props: LibSettings.Types.Key, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a custom key binding element, with support for meta keys, key chords and single key input.
-    Key
-    = (function()
-        local CustomBindingManager, CustomBindingButtonMixin = CreateFromMixins(CustomBindingManager), CreateFromMixins(CustomBindingButtonMixin);
-        CustomBindingManager.handlers     = {};
-        CustomBindingManager.systems      = {};
-        CustomBindingManager.pendingBinds = {};
-
-        local CreateKeyChordStringFromTable = CreateKeyChordStringFromTable;
-        local CreateKeyChordTableFromString = function(keyChordString)
-            local keyChordTable = {};
-            for key in keyChordString:gmatch('[^%-]+') do
-                tinsert(keyChordTable, key);
-            end
-            return keyChordTable;
-        end
-
-        local FilterAgnostic = function(props, keyChordString)
-            if not props.agnostic then
-                return keyChordString;
-            end
-            local keyChordTable = CreateKeyChordTableFromString(keyChordString);
-            for i, key in ipairs(keyChordTable) do
-                keyChordTable[i] = IsMetaKey(key) and (key:gsub('^[LR]', '')) or key;
-            end
-            return CreateKeyChordStringFromTable(keyChordTable);
-        end
-
-        local FilterSingle = function(props, keyChordString)
-            if props.single then
-                return (keyChordString:match('[^%-]+$'));
-            end
-            return keyChordString;
-        end
-
-        function CustomBindingButtonMixin:OnInput(key, isDown)
-            local isButtonRelease = not isDown;
-            if not self:IsBindingModeActive() then
-                if isButtonRelease then
-                    self:EnableInputs(false);
-                end
-                return;
-            end
-            key = GetConvertedKeyOrButton(key);
-            if isDown then
-                if key == 'ESCAPE' then
-                    self:CancelBinding();
-                    return;
-                end
-                if not IsMetaKey(key) then
-                    self.receivedNonMetaKeyInput = true;
-                end
-                tinsert(self.keys, key);
-            end
-            CustomBindingManager:SetPendingBind(self:GetCustomBindingType(), self.keys);
-            if self.receivedNonMetaKeyInput or isButtonRelease then
-                self:NotifyBindingCompleted(true, self.keys);
-                if isButtonRelease then
-                    self:EnableInputs(false);
-                end
-            end
-        end
-
-        function CustomBindingButtonMixin:EnableInputs(enabled)
-            self:EnableKeyboard(enabled);
-            self:EnableGamePadButton(enabled);
-        end
-
-        function CustomBindingButtonMixin:SetBindingModeActive(isActive, preventBindingManagerUpdate)
-            self.isBindingModeActive = isActive;
-            self.receivedNonMetaKeyInput = false;
-            self.keys = {};
-            BindingButtonTemplate_SetSelected(self, isActive);
-            if isActive then
-                self:RegisterForClicks('AnyDown', 'AnyUp');
-                self:EnableInputs(true);
-            else
-                self:RegisterForClicks('LeftButtonUp', 'RightButtonUp');
-            end
-            if not preventBindingManagerUpdate then
-                CustomBindingManager:OnBindingModeActive(self, isActive);
-            end
-        end
-
-        function CustomBindingButtonMixin:NotifyBindingCompleted(completedSuccessfully, keys)
-            CustomBindingManager:OnBindingCompleted(self, completedSuccessfully, keys);
-            self:SetBindingModeActive(false);
-        end
-
-        local function OnKeySettingChanged(_, setting, value)
-            local finalValue = GetBindingText(value);
-            for _, button in CustomBindingManager:EnumerateHandlers(setting) do
-                button:OnBindingTextChanged(finalValue);
-            end
-        end
-
-        return function(props, parent, index)
-            local init, id = MakeElement(props, parent, index);
-            local data = init:GetData();
-            local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
-            init:SetSetting(setting);
-            local set, get = MountControls(props, setting, GetCallbacks(props, parent));
-
-            CustomBindingManager:AddSystem(setting,
-                function() return CreateKeyChordTableFromString(get()) end,
-                function(keys) set(FilterSingle(props, FilterAgnostic(props, CreateKeyChordStringFromTable(keys)))) end
-            );
-
-            local handler = CustomBindingHandler:CreateHandler(setting);
-            data.OnSettingValueChanged = OnKeySettingChanged;
-
-            handler:SetOnBindingModeActivatedCallback(function(isActive)
-                if isActive then
-                    SettingsPanel.OutputText:SetFormattedText(BIND_KEY_TO_COMMAND, data.name);
-                end
-            end);
-
-            handler:SetOnBindingCompletedCallback(function(completedSuccessfully, keys)
-                CustomBindingManager:OnDismissed(setting, completedSuccessfully)
-                if completedSuccessfully then
-                    SettingsPanel.OutputText:SetText(KEY_BOUND);
-                end
-            end);
-
-            local elementInitializer = init.InitFrame;
-            init.InitFrame = function(initializer, self)
-                elementInitializer(initializer, self);
-                self.cbrHandles:SetOnValueChangedCallback(setting:GetVariable(), data.OnSettingValueChanged, self);
-                data.button = Lib:AcquireFromPool('Button', 'CustomBindingButtonTemplate', function(button)
-                    Mixin(button, CustomBindingButtonMixin);
-                    button:SetCustomBindingHandler(handler);
-                    button:SetCustomBindingType(setting);
-                    CustomBindingManager:SetHandlerRegistered(button, true);
-                    button:SetWidth(200);
-                    button:Show();
-                    button:EnableInputs(false);
-                    local bindingText = CustomBindingManager:GetBindingText(button:GetCustomBindingType());
-                    if bindingText then
-                        button:SetText(bindingText);
-                        button:SetAlpha(1);
-                    else
-                        button:SetText(GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND));
-                        button:SetAlpha(0.8);
-                    end
-                end, self);
-                data.button:SetPoint('LEFT', self, 'CENTER', -80, 0);
-            end;
-
-            local elementResetter = init.Resetter;
-            init.Resetter = function(initializer, self)
-                elementResetter(initializer, self);
-                CustomBindingManager:SetHandlerRegistered(data.button, false);
-                data.button:Release();
-                data.button = nil;
-            end;
-
-            return init, id, nil, set, get;
-        end
-    end)();
-
-    ---@type fun(props: LibSettings.Types.Color, parent: LibSettings.Result.Layout, index: integer): LibSettings.Result.Init, ...
-    --- Creates a color picker element.
-    Color
-    = (function()
-        local function GetRGBAHexStringFromColor(color)
-            local r, g, b, a = color:GetRGBAAsBytes();
-            return ('%.2x%.2x%.2x%.2x'):format(a, r, g, b);
-        end
-
-        local function GetColorAlpha()
-            if ColorPickerFrame.GetColorAlpha then
-                return ColorPickerFrame:GetColorAlpha();
-            end
-            -- TODO: Remove > 3.4.3.52237
-            return 1 - OpacitySliderFrame:GetValue();
-        end
-
-        local function GetPreviousValues()
-            local picker = ColorPickerFrame;
-            if picker.GetPreviousValues then
-                return picker:GetPreviousValues();
-            end
-            -- TODO: Remove > 3.4.3.52237
-            return unpack(picker.previousValues);
-        end
-
-        local function SetupColorPickerAndShow(info)
-            local picker, swatch = ColorPickerFrame, ColorSwatch;
-            if picker.SetupColorPickerAndShow then
-                return picker:SetupColorPickerAndShow(info);
-            end
-            -- TODO: Remove > 3.4.3.52237
-            picker:Hide()
-            picker:SetColorRGB(info.r, info.g, info.b, info.a)
-            picker.hasOpacity     = info.hasOpacity;
-            picker.opacity        = 1 - info.opacity;
-            picker.previousValues = {info.r, info.g, info.b, info.a};
-            picker.func           = info.swatchFunc;
-            picker.cancelFunc     = info.cancelFunc;
-            picker.opacityFunc    = info.swatchFunc;
-            picker:Show()
-            swatch:SetColorTexture(info.r, info.g, info.b)
-        end
-
-        local function OnColorChanged(color, set)
-            local r, g, b = ColorPickerFrame:GetColorRGB();
-            local a = GetColorAlpha();
-            color:SetRGBA(r, g, b, a);
-            set(GetRGBAHexStringFromColor(color));
-        end
-
-        local function OnColorCancel(color, set)
-            local r, g, b, a = GetPreviousValues();
-            color:SetRGBA(r, g, b, a);
-            set(GetRGBAHexStringFromColor(color));
-        end
-
-        local function OnColorButtonClick(data, set)
-            local color = data.color;
-            local r, g, b, a = color:GetRGBA();
-            local onColorChanged = GenerateClosure(OnColorChanged, color, set);
-            SetupColorPickerAndShow({
-                hasOpacity  = true;
-                swatchFunc  = onColorChanged;
-                opacityFunc = onColorChanged;
-                cancelFunc  = GenerateClosure(OnColorCancel, color, set);
-                r = r; g = g; b = b; opacity = a;
-            })
-        end
-
-        local function OnColorSettingChanged(data, set, _, _, value)
-            data.color = CreateColorFromHexString(value);
-            data.text:SetText(data.color:WrapTextInColorCode(value:upper()));
-            data.swatch:SetVertexColor(data.color:GetRGBA());
-            set(value);
-        end
-
-        return function(props, parent, index)
-            local init, id = MakeElement(props, parent, index);
-            local data = init:GetData();
-            local setting = MakeSetting(props, parent, data.name, data.variable, Settings.VarType.String);
-            init:SetSetting(setting);
-            local set, get = MountControls(props, setting, GetCallbacks(props, parent));
-
-            data.color = CreateColorFromHexString(get());
-            data.OnSettingValueChanged = GenerateClosure(OnColorSettingChanged, data, set);
-
-            local elementInitializer = init.InitFrame;
-            init.InitFrame = function(initializer, self)
-                elementInitializer(initializer, self);
-                self.cbrHandles:SetOnValueChangedCallback(setting:GetVariable(), data.OnSettingValueChanged, self);
-                data.button = Lib:AcquireFromPool('Button', nil, function(button)
-                    data.swatch = Lib:AcquireFromPool('Texture', 'OVERLAY', function(swatch)
-                        swatch:SetPoint('TOPLEFT', button, 'TOPLEFT', -6, 6);
-                        swatch:SetPoint('BOTTOMRIGHT', button, 'BOTTOMRIGHT', 6, -6);
-                        swatch:SetTexture('Interface\\ChatFrame\\ChatFrameColorSwatch');
-                        swatch:SetTexCoord(0, 1, 0, 1);
-                        swatch:Show();
-                        swatch:SetVertexColor(data.color:GetRGBA());
-                    end, self);
-                    data.background = Lib:AcquireFromPool('Texture', 'BACKGROUND', function(background)
-                        background:SetColorTexture(1, 1, 1);
-                        background:SetAllPoints(button);
-                        background:Show();
-                    end, self);
-                    data.checkers = Lib:AcquireFromPool('Texture', 'ARTWORK', function(checkers)
-                        checkers:SetTexture(188523); -- Tileset\\Generic\\Checkers
-                        checkers:SetTexCoord(.25, 0, 0.5, .25);
-                        checkers:SetDesaturated(true);
-                        checkers:SetVertexColor(1, 1, 1, 0.75);
-                        checkers:SetAllPoints(button);
-                        checkers:Show();
-                    end, self);
-                    data.text = Lib:AcquireFromPool('FontString', 'ARTWORK', function(text)
-                        text:SetFontObject('GameFontHighlight');
-                        text:SetText(data.color:WrapTextInColorCode(get():upper()));
-                        text:SetPoint('LEFT', button, 'RIGHT', 8, 0);
-                        text:Show();
-                    end, self);
-                    button:Show();
-                    button:SetSize(24, 24);
-                    button:SetPoint('LEFT', self, 'CENTER', -78, 0);
-                    button:SetHitRectInsets(0, -100, 0, 0);
-                    button:SetScript('OnClick', GenerateClosure(OnColorButtonClick, data, set));
-                end, self);
-            end;
-
-            local elementResetter = init.Resetter;
-            init.Resetter = function(initializer, self)
-                elementResetter(initializer, self);
-                data.button:Release(function(button)
-                    button:SetScript('OnClick', nil);
-                    button:SetHitRectInsets(0, 0, 0, 0);
-                end);
-                data.swatch:Release();
-                data.background:Release();
-                data.checkers:Release();
-                data.text:Release();
-                ---@diagnostic disable-next-line: unbalanced-assignments
-                data.button, data.swatch, data.background, data.checkers, data.text = nil;
-            end;
-
-            return init, id, nil, set, get;
-        end
-    end)();
-
-};
+Lib.Types = {};
 
 local ResolveType = GenerateClosure(function(Types, props, parent)
-    if not parent then
-        if props.frame then
-            return Types.CanvasLayoutCategory;
-        else
-            return Types.VerticalLayoutCategory;
+    for _, resolver in pairs(Lib.Resolvers) do
+        local result = resolver(Types, props, parent);
+        if result then
+            return result;
         end
-    elseif props.options then
-        return Types.DropDown;
-    elseif props.step then
-        return Types.Slider;
-    elseif type(props.default) == 'boolean' then
-        if props[CHILDREN] then
-            if props[CHILDREN].options then
-                return Types.CheckBoxDropDown;
-            elseif props[CHILDREN].step then
-                return Types.CheckBoxSlider;
-            end
-            return Types.CheckBoxSlider;
-        end
-        return Types.CheckBox;
-    elseif props.binding then
-        return Types.Binding;
-    elseif not props[CHILDREN] then
-        return Types.Header;
-    elseif props.frame then
-        return Types.CanvasLayoutSubcategory;
-    else
-        return Types.VerticalLayoutSubcategory;
     end
+    error(('Type could not be resolved for object %q'):format(tostring(props.name)), 2);
 end, Lib.Types);
 
 ---------------------------------------------------------------
@@ -941,6 +318,32 @@ function Lib:AddCustomType(name, factory, force)
         error(('Type already exists: %q'):format(tostring(name)), 2);
     end
     self.Types[name] = factory;
+end
+
+---------------------------------------------------------------
+-- Module definition
+---------------------------------------------------------------
+Lib.Modules, Lib.Resolvers = {}, {};
+setmetatable(Env, {
+    __index = _G;
+    __newindex = function(_, name, factory)
+        assert(type(factory) == 'function', ('Factory for %q must be a function'):format(name));
+        Lib.Types[name] = factory;
+    end;
+})
+function Lib:Module(module, version)
+    if (self.Modules[module] or 0) >= version then
+        return nil;
+    end
+    self.Modules[module] = version;
+    setfenv(2, Env);
+    return self;
+end
+function Lib:Resolve(module, resolver)
+    if not self.Modules[module] then
+        error(('Module %q not defined.'):format(module), 2);
+    end
+    self.Resolvers[module] = resolver;
 end
 
 ---------------------------------------------------------------
@@ -1099,26 +502,6 @@ return setmetatable(Lib, {
     ---@field  id           string               Generative identifier of the element
     ---@field  type         function?            Factory function for the element
 ---------------------------------------------------------------------------------------
----@class LibSettings.AnchorList
-    ---@field  [1]          FramePoint           Anchor point
-    ---@field  [2]          number               X offset
-    ---@field  [3]          number               Y offset
----------------------------------------------------------------------------------------
----@class LibSettings.Anchors<i, LibSettings.AnchorList>
----------------------------------------------------------------------------------------
----@class LibSettings.OptionList
-    ---@field  [1]          any                  Value of the option
-    ---@field  [2]          string               Display name of the option
-    ---@field  [3]          string               Optional tooltip line for the option
----------------------------------------------------------------------------------------
----@class LibSettings.Options<i, LibSettings.OptionList>
----------------------------------------------------------------------------------------
----@class LibSettings.Canvas : LibSettings.ListItem
-    ---@field  OnCommit      function            Callback function for committing
-    ---@field  OnDefault     function            Callback function for resetting
-    ---@field  OnRefresh     function            Callback function for refreshing
-    ---@source Interface/SharedXML/Settings/Blizzard_SettingsCanvas.lua
----------------------------------------------------------------------------------------
 ---@class LibSettings.Variable : LibSettings.ListItem
     ---@field  variable     string               Unique variable ID of the element
     ---@field  search       boolean              Show the element in search results
@@ -1136,59 +519,6 @@ return setmetatable(Lib, {
     ---@field  key          any                  Optional key for value in storage table
     ---@field  table        table|string         Table/global ref. to store value
     ---@field  cvar         string               CVar to store and access value
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Binding : LibSettings.Variable
-    ---@field  binding      string               Binding to modify
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Button : LibSettings.Variable
-    ---@field  click        function             Callback function for the button
-    ---@field  title        string               Title of the button
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBox : LibSettings.Setting
-    ---@field  default      boolean              Default value of the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBoxDropDown : LibSettings.Types.CheckBox
-    ---@field [1] LibSettings.Types.DropDown      Dropdown next to the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Types.CheckBoxSlider : LibSettings.Types.CheckBox
-    ---@field [1] LibSettings.Types.Slider        Slider next to the checkbox
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Color : LibSettings.Setting
-    ---@field  default      string               Default color value in hex (AARRGGBB)
----------------------------------------------------------------------------------------
----@class LibSettings.Types.DropDown : LibSettings.Setting
-    ---@field  default      any                  Default value of the dropdown
-    ---@field  options      LibSettings.Options | LibSettings.OptGen Options table or generator
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Element : LibSettings.Variable
-    ---@field  width        number               Width of the element : DEF_ELEM_WIDTH
-    ---@field  height       number               Height of the element : DEF_ELEM_HEIGHT
-    ---@field  extent       number               Extent of the element (height + padding)
----------------------------------------------------------------------------------------
----@class LibSettings.Types.ExpandableSection : LibSettings.ListItem
-    ---@field  expanded     boolean              Section is expanded by default
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Header : LibSettings.ListItem
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Key : LibSettings.Setting
-    ---@field  agnostic     boolean              Key chord is agnostic to meta key side
-    ---@field  single       boolean              Key chord is single key
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Slider : LibSettings.Setting
-    ---@field  default      number               Default value of the slider
-    ---@field  min          number               Minimum value of the slider
-    ---@field  max          number               Maximum value of the slider
-    ---@field  step         number               Step value of the slider
-    ---@field  format       function             Function to format the slider value
----------------------------------------------------------------------------------------
----@class LibSettings.Types.Spacer : LibSettings.ListItem
----------------------------------------------------------------------------------------
----@class LibSettings.Category.Vertical : LibSettings.Setting
-    ---@field [1] table<integer, LibSettings.ListItem> List of child elements
----------------------------------------------------------------------------------------
----@class LibSettings.Category.Canvas : LibSettings.ListItem
-    ---@field  frame        LibSettings.Canvas   Frame to insert in the canvas
-    ---@field  anchor       LibSettings.Anchors  Anchor points for the frame
 ---------------------------------------------------------------------------------------
 ---@class LibSettings.Result.Base
     ---@field  id           string               Unique identifier of the object
@@ -1211,12 +541,6 @@ return setmetatable(Lib, {
     ---@field  setValue     LibSettings.Setter   Callback function for setting a value
     ---@field  getValue     LibSettings.Getter   Callback function for getting a value
 ---------------------------------------------------------------------------------------
----@class Blizzard.Option
-    ---@field  value        any                  Value of the option
-    ---@field  name         string               Display name of the option
-    ---@field  tooltip      string               Optional tooltip line for the option
-    ---@field  disabled     boolean              Option is disabled
----------------------------------------------------------------------------------------
 ---@class Blizzard.Anchor
     ---@field  point        FramePoint           Anchor point
     ---@field  x            number               X offset
@@ -1237,7 +561,4 @@ return setmetatable(Lib, {
 ---@alias LibSettings.Setter   fun(internal: LibSettings.Setting, setting: Blizzard.Setting, value: any)
 ---@alias LibSettings.Set      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Setter
 ---@alias LibSettings.Get      fun(props: LibSettings.Setting, parent: LibSettings.Result.Layout?) : LibSettings.Getter
----@alias LibSettings.OptGen   fun(internal: LibSettings.Setting) : Blizzard.Option[]
----@alias LibSettings.OptList  fun(options: LibSettings.Options) : Blizzard.Option[]
----@alias LibSettings.GetOpts  LibSettings.OptGen | LibSettings.OptList
 ---------------------------------------------------------------------------
