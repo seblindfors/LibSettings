@@ -1,10 +1,10 @@
 ---@class LibSettings
-local Lib = LibStub:NewLibrary('LibSettings', 0.5);
+local Lib = LibStub:NewLibrary('LibSettings', 0.6);
 if not Lib then return end;
 ---------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------
-local Settings, CHILDREN, DELIMITER, Env = Settings, 1, '.', {
+local DELIMITER, Settings, Env = '.', Settings, {
     DEF_ELEM_WIDTH = 280,
     DEF_ELEM_HEIGHT = 26,
     CHILDREN = 1,
@@ -362,7 +362,7 @@ local function Factory(props, parent, index)
         result.getOption  ---@return function getOption Callback function for getting an option
         = factory(props, parent, index);
     end
-    local children = props[CHILDREN];
+    local children = props[Env.CHILDREN];
     if children then
         result.children = {};
         for i, child in ipairs(children) do
